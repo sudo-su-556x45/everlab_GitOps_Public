@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ersatztv
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ersatztv
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ersatztv
+        app.kubernetes.io/part-of: media-stack
+        app.kubernetes.io/component: media-server
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8w-01.k8s.everlab.dev
+        nvidia.com/gpu.product: Quadro-P1000-SHARED
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 85200024
+        runAsGroup: 85200014
+        fsGroup: 85200014
+        fsGroupChangePolicy: OnRootMismatch
+        supplementalGroups:
+          - 85200014
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: ersatztv
+          image: ghcr.io/ersatztv/legacy:v26.7.1
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          env:
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: media-stack-settings
+                  key: TZ
+
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,video,utility
+
+          ports:
+            - name: http
+              containerPort: 8409
+              protocol: TCP
+
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 3
+
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 3
+
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 3
+
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+              ephemeral-storage: 1Gi
+              nvidia.com/gpu: "1"
+
+            limits:
+              cpu: "4"
+              memory: 4Gi
+              ephemeral-storage: 20Gi
+              nvidia.com/gpu: "1"
+
+          volumeMounts:
+            - name: config
+              mountPath: /config
+
+            - name: media
+              mountPath: /media
+              readOnly: true
+
+            - name: transcode
+              mountPath: /transcode
+
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: ersatztv-config
+
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-data
+            readOnly: true
+
+        - name: transcode
+          persistentVolumeClaim:
+            claimName: ersatztv-transcode

@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - immich
+  - nocodb
+  - n8n/application.yaml
+  - vikunja
+  - forgejo
+  - paperless-ngx
+  - wiki-js
+  - plex/application.yaml
+  - media/application.yaml
+  - actualbudget/application.yaml
+  - code-server/application.yaml
+  - trek/application.yaml
+  - radicale/application.yaml
+  - homepage/application.yaml
+  - home-assistant/application.yaml
+  - ai/application.yaml
+  - bridges/application.yaml
+  - radio-operators/application.yaml
+  - unifi/application.yaml
+  - ntfy/application.yaml
+  - matrix
+  - frigate/application.yaml

@@ -1,0 +1,345 @@
+---
+- name: Collect control-plane join inputs
+  hosts: localhost
+  gather_facts: false
+
+  vars_prompt:
+    - name: target_host_input
+      prompt: "New control-plane management host or inventory name"
+      private: false
+
+    - name: control_plane_host_input
+      prompt: "Existing control-plane management host or inventory name"
+      private: false
+      default: "prod-k8m-01"
+
+  tasks:
+    - name: Store join inputs
+      ansible.builtin.set_fact:
+        target_host: "{{ target_host_input }}"
+        control_plane_host: "{{ control_plane_host_input }}"
+
+- name: Prepare new Kubernetes control-plane node
+  hosts: >-
+    {{
+      (hostvars | default({}))
+      .get('localhost', {})
+      .get('target_host', 'localhost')
+    }}
+  gather_facts: true
+  become: true
+
+  roles:
+    - k8s_common
+
+  tasks:
+    - name: Refresh facts after hostname configuration
+      ansible.builtin.setup:
+
+    - name: Validate target control-plane variables
+      ansible.builtin.assert:
+        that:
+          - k8s_cluster_ip is defined
+          - k8s_cluster_ip | length > 0
+          - k8s_hostname is defined
+          - k8s_hostname | length > 0
+          - k8s_api_hostname is defined
+          - k8s_api_hostname | length > 0
+          - k8s_api_vip is defined
+          - k8s_api_vip | length > 0
+          - k8s_api_port is defined
+          - k8s_pod_cidr is defined
+          - k8s_service_cidr is defined
+        fail_msg: >-
+          The target controller must define k8s_cluster_ip and
+          k8s_hostname. Cluster variables k8s_api_hostname,
+          k8s_api_vip, k8s_api_port, k8s_pod_cidr, and
+          k8s_service_cidr must also be defined.
+
+    - name: Verify API hostname resolves to the VIP
+      ansible.builtin.command:
+        argv:
+          - getent
+          - hosts
+          - "{{ k8s_api_hostname }}"
+      register: target_api_resolution
+      changed_when: false
+      failed_when: k8s_api_vip not in target_api_resolution.stdout
+
+    - name: Verify HA API endpoint is reachable from target
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --show-error
+          - --fail
+          - --insecure
+          - --connect-timeout
+          - "10"
+          - "https://{{ k8s_api_hostname }}:{{ k8s_api_port }}/livez"
+      register: target_api_health
+      changed_when: false
+      failed_when: >-
+        target_api_health.rc != 0 or
+        target_api_health.stdout | trim != "ok"
+
+- name: Generate control-plane join command
+  hosts: >-
+    {{
+      (hostvars | default({}))
+      .get('localhost', {})
+      .get('control_plane_host', 'localhost')
+    }}
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Validate existing control-plane variables
+      ansible.builtin.assert:
+        that:
+          - k8s_cluster_ip is defined
+          - k8s_cluster_ip | length > 0
+          - k8s_api_hostname is defined
+          - k8s_api_hostname | length > 0
+          - k8s_api_port is defined
+          - k8s_pod_cidr is defined
+          - k8s_service_cidr is defined
+        fail_msg: >-
+          The existing controller must define k8s_cluster_ip and the
+          cluster variables required by kubeadm.
+
+    - name: Check available administrative kubeconfigs
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/kubernetes/super-admin.conf
+        - /etc/kubernetes/admin.conf
+      register: administrative_kubeconfigs
+
+    - name: Select administrative kubeconfig
+      ansible.builtin.set_fact:
+        kubeadm_admin_kubeconfig: >-
+          {{
+            (
+              administrative_kubeconfigs.results
+              | selectattr('stat.exists')
+              | map(attribute='item')
+              | first
+            ) | default('')
+          }}
+
+    - name: Fail if no administrative kubeconfig exists
+      ansible.builtin.assert:
+        that:
+          - kubeadm_admin_kubeconfig | length > 0
+        fail_msg: >-
+          Neither /etc/kubernetes/super-admin.conf nor
+          /etc/kubernetes/admin.conf exists on the selected
+          control-plane node.
+
+    - name: Verify selected kubeconfig has required access
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ kubeadm_admin_kubeconfig }}"
+          - auth
+          - can-i
+          - create
+          - secrets
+          - --namespace
+          - kube-system
+      register: kubeconfig_authorization
+      changed_when: false
+      failed_when: kubeconfig_authorization.stdout | trim != "yes"
+
+    - name: Verify API endpoint is reachable from existing controller
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --show-error
+          - --fail
+          - --insecure
+          - --connect-timeout
+          - "10"
+          - "https://{{ k8s_api_hostname }}:{{ k8s_api_port }}/livez"
+      register: existing_api_health
+      changed_when: false
+      failed_when: >-
+        existing_api_health.rc != 0 or
+        existing_api_health.stdout | trim != "ok"
+
+    - name: Read live kubeadm ClusterConfiguration
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ kubeadm_admin_kubeconfig }}"
+          - --namespace
+          - kube-system
+          - get
+          - configmap
+          - kubeadm-config
+          - --output
+          - jsonpath={.data.ClusterConfiguration}
+      register: live_cluster_configuration
+      changed_when: false
+
+    - name: Create kubeadm upload-certs configuration
+      ansible.builtin.copy:
+        dest: /root/kubeadm-upload-certs.yaml
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          apiVersion: kubeadm.k8s.io/v1beta4
+          kind: InitConfiguration
+          localAPIEndpoint:
+            advertiseAddress: {{ k8s_cluster_ip }}
+            bindPort: {{ k8s_api_port }}
+          ---
+          {{ live_cluster_configuration.stdout }}
+
+    - name: Generate base join command
+      ansible.builtin.command:
+        argv:
+          - kubeadm
+          - token
+          - create
+          - --print-join-command
+          - --kubeconfig
+          - "{{ kubeadm_admin_kubeconfig }}"
+      register: base_join_command
+      changed_when: true
+      no_log: true
+
+    - name: Upload control-plane certificates
+      ansible.builtin.command:
+        argv:
+          - kubeadm
+          - init
+          - phase
+          - upload-certs
+          - --upload-certs
+          - --config
+          - /root/kubeadm-upload-certs.yaml
+          - --kubeconfig
+          - "{{ kubeadm_admin_kubeconfig }}"
+      register: upload_certs
+      changed_when: true
+      no_log: true
+
+    - name: Validate uploaded certificate key output
+      ansible.builtin.assert:
+        that:
+          - upload_certs.stdout_lines | length > 0
+          - upload_certs.stdout_lines[-1] | trim | length == 64
+        fail_msg: >-
+          kubeadm did not return a valid 64-character certificate key.
+      no_log: true
+
+    - name: Store generated control-plane join command
+      ansible.builtin.set_fact:
+        generated_control_plane_join_command: >-
+          {{ base_join_command.stdout }}
+          --control-plane
+          --certificate-key {{ upload_certs.stdout_lines[-1] | trim }}
+      no_log: true
+
+- name: Join additional Kubernetes control-plane node
+  hosts: >-
+    {{
+      (hostvars | default({}))
+      .get('localhost', {})
+      .get('target_host', 'localhost')
+    }}
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Check whether target is already a control-plane node
+      ansible.builtin.stat:
+        path: /etc/kubernetes/admin.conf
+      register: target_admin_conf
+
+    - name: Join control-plane node to cluster
+      ansible.builtin.command: >-
+        {{
+          hostvars[
+            hostvars['localhost']['control_plane_host']
+          ].generated_control_plane_join_command
+        }}
+        --apiserver-advertise-address={{ k8s_cluster_ip }}
+        --node-name={{ k8s_hostname }}
+      register: control_plane_join
+      when: not target_admin_conf.stat.exists
+      no_log: true
+
+    - name: Wait for local API server to become healthy
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --show-error
+          - --fail
+          - --insecure
+          - --connect-timeout
+          - "5"
+          - "https://127.0.0.1:6443/livez"
+      register: local_api_health
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: >-
+        local_api_health.rc == 0 and
+        local_api_health.stdout | trim == "ok"
+
+    - name: Create root kubeconfig directory
+      ansible.builtin.file:
+        path: /root/.kube
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Copy admin kubeconfig for root
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Install kube-vip
+      ansible.builtin.include_role:
+        name: kube_vip
+
+    - name: Wait for node to appear in the cluster
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - /etc/kubernetes/admin.conf
+          - get
+          - node
+          - "{{ k8s_hostname }}"
+      register: joined_node
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: joined_node.rc == 0
+
+    - name: Wait for node to become Ready
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - /etc/kubernetes/admin.conf
+          - wait
+          - --for=condition=Ready
+          - "node/{{ k8s_hostname }}"
+          - --timeout=300s
+      register: joined_node_ready
+      changed_when: false

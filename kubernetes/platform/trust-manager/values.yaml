@@ -1,0 +1,53 @@
+crds:
+  enabled: true
+  keep: true
+
+replicaCount: 1
+
+defaultPackage:
+  enabled: true
+
+app:
+  logFormat: text
+  logLevel: 1
+
+  leaderElection:
+    enabled: true
+
+  trust:
+    namespace: cert-manager
+
+  webhook:
+    tls:
+      helmCert:
+        enabled: false
+
+  metrics:
+    port: 9402
+
+    service:
+      enabled: true
+      type: ClusterIP
+
+      servicemonitor:
+        enabled: true
+        prometheusInstance: default
+        interval: 30s
+        scrapeTimeout: 10s
+        labels:
+          release: kube-prometheus-stack
+
+secretTargets:
+  enabled: false
+  authorizedSecretsAll: false
+  authorizedSecrets: []
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+podDisruptionBudget:
+  enabled: false

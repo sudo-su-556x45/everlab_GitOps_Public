@@ -1,0 +1,6 @@
+# Ansible Vault data and local vault credentials
+inventories/**/vault.yml
+.vault-password*
+
+# Local Ansible artifacts
+*.retry

@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless-valkey
+  namespace: paperless-ngx
+  labels:
+    app.kubernetes.io/name: paperless-valkey
+    app.kubernetes.io/part-of: paperless-ngx
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperless-valkey
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless-valkey
+        app.kubernetes.io/part-of: paperless-ngx
+
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: valkey
+          image: valkey/valkey:8.1-alpine
+          imagePullPolicy: IfNotPresent
+
+          args:
+            - valkey-server
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+          readinessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paperless-valkey
+  namespace: paperless-ngx
+  labels:
+    app.kubernetes.io/name: paperless-valkey
+spec:
+  selector:
+    app.kubernetes.io/name: paperless-valkey
+
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP

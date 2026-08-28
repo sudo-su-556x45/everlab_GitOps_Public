@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wiki-js
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: wiki-js
+    app.kubernetes.io/part-of: everlab
+    app.kubernetes.io/component: application
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+    targetRevision: main
+    path: kubernetes/applications/wiki-js/wiki-js
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: wiki-js
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

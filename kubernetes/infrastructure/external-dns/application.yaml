@@ -1,0 +1,80 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/external-dns/
+      chart: external-dns
+      targetRevision: "1.21.1"
+
+      helm:
+        releaseName: external-dns
+
+        valuesObject:
+          provider:
+            name: rfc2136
+
+          sources:
+            - service
+            - ingress
+            - gateway-httproute
+
+          domainFilters:
+            - prod.everlab.dev
+
+          policy: upsert-only
+          registry: txt
+          txtOwnerId: everlab-prod
+
+          env:
+            - name: RFC2136_TSIG_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: external-dns-tsig
+                  key: tsig-secret
+
+          extraArgs:
+            rfc2136-host: "192.168.10.103"
+            rfc2136-port: "53"
+            rfc2136-zone: "prod.everlab.dev"
+            rfc2136-tsig-keyname: "external-dns.prod.everlab.dev"
+            rfc2136-tsig-secret: "$(RFC2136_TSIG_SECRET)"
+            rfc2136-tsig-secret-alg: "hmac-sha256"
+
+          serviceMonitor:
+            enabled: true
+            interval: 30s
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/infrastructure/external-dns
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 10

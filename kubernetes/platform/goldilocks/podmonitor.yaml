@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: goldilocks-vpa-admission-controller
+  namespace: goldilocks
+  labels:
+    app.kubernetes.io/name: vpa
+    app.kubernetes.io/part-of: goldilocks
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vpa
+      app.kubernetes.io/component: admission-controller
+
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

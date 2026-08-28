@@ -1,0 +1,67 @@
+replicaCount: 1
+
+image:
+  repository: nocodb/nocodb
+  pullPolicy: IfNotPresent
+
+worker:
+  enabled: true
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  terminationGracePeriodSeconds: 120
+
+externalDatabase:
+  existingSecret: nocodb-secrets
+  existingSecretKey: DATABASE_URL
+
+externalRedis:
+  existingSecret: nocodb-secrets
+  existingSecretKey: NC_REDIS_URL
+
+nocodb:
+  publicUrl: https://nocodb.prod.everlab.dev
+
+extraEnvVars:
+
+  - name: NC_SITE_URL
+    value: https://nocodb.prod.everlab.dev
+
+  - name: NC_DISABLE_TELE
+    value: "true"
+
+  - name: NC_REQUEST_BODY_SIZE
+    value: "104857600"
+
+  - name: TZ
+    value: America/Denver
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
+autoscaling:
+  enabled: false
+
+pdb:
+  create: false
+
+podAntiAffinityPreset: soft

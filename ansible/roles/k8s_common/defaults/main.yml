@@ -1,0 +1,97 @@
+---
+###############################################################################
+# Kubernetes Version
+###############################################################################
+
+# Kubernetes repository version (pkgs.k8s.io)
+k8s_version: "v1.36"
+
+###############################################################################
+# Cluster Networking
+###############################################################################
+
+# Pod CIDR
+k8s_pod_cidr: "10.244.0.0/16"
+
+# Service CIDR (default kubeadm)
+k8s_service_cidr: "10.96.0.0/12"
+
+# Cluster DNS domain
+k8s_cluster_domain: "cluster.local"
+
+###############################################################################
+# Container Runtime
+###############################################################################
+
+k8s_container_runtime: containerd
+
+###############################################################################
+# Kubernetes Packages
+###############################################################################
+
+k8s_packages:
+  - kubelet
+  - kubeadm
+  - kubectl
+
+###############################################################################
+# Base Packages
+###############################################################################
+
+k8s_prerequisite_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg
+  - containerd
+  - containernetworking-plugins
+  - nfs-common
+
+k8s_additional_packages:
+  - cri-tools
+
+###############################################################################
+# Kernel Modules
+###############################################################################
+
+k8s_kernel_modules:
+  - overlay
+  - br_netfilter
+
+###############################################################################
+# Sysctl
+###############################################################################
+
+k8s_sysctl:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.bridge.bridge-nf-call-ip6tables: 1
+  net.ipv4.ip_forward: 1
+
+###############################################################################
+# Repository
+###############################################################################
+
+k8s_repo_url: "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/"
+k8s_repo_key: "https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/Release.key"
+
+###############################################################################
+# kubeadm
+###############################################################################
+
+kubeadm_config: /etc/kubernetes/admin.conf
+
+###############################################################################
+# kubeconfig
+###############################################################################
+
+kubeconfig_directory: /root/.kube
+kubeconfig_file: /root/.kube/config
+
+###############################################################################
+# Container runtime and CNI
+###############################################################################
+
+k8s_cni_bin_dir: /opt/cni/bin
+k8s_cni_conf_dir: /etc/cni/net.d
+k8s_containerd_config_path: /etc/containerd/config.toml
+k8s_pause_image: registry.k8s.io/pause:3.10.2

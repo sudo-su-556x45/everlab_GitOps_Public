@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: unifi-backend
+  namespace: unifi
+spec:
+  secretName: unifi-backend-tls
+
+  issuerRef:
+    name: everlab-internal-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+  dnsNames:
+    - unifi.unifi.svc.cluster.local

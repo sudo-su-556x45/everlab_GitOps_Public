@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/app-template-5.0.1/charts/other/app-template/values.schema.json
+
+defaultPodOptions:
+  automountServiceAccountToken: false
+
+  nodeSelector:
+    radio-controllers: "true"
+
+controllers:
+  main:
+    type: deployment
+    replicas: 1
+    strategy: Recreate
+
+    annotations:
+      reloader.stakater.com/auto: "true"
+
+    containers:
+      main:
+        image:
+          repository: zwavejs/zwave-js-ui
+          tag: "11.22.2"
+          pullPolicy: IfNotPresent
+
+        env:
+          TZ:
+            value: America/Denver
+
+          STORE_DIR:
+            value: /usr/src/app/store
+
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8091
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 2
+              failureThreshold: 30
+
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8091
+              periodSeconds: 10
+              timeoutSeconds: 2
+              failureThreshold: 6
+
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8091
+              periodSeconds: 30
+              timeoutSeconds: 2
+              failureThreshold: 5
+
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+
+          limits:
+            memory: 1Gi
+            everlab.dev/zwave: 1
+
+service:
+  main:
+    controller: main
+    type: ClusterIP
+
+    ports:
+      http:
+        port: 8091
+        protocol: TCP
+
+      websocket:
+        port: 3000
+        protocol: TCP
+
+persistence:
+  store:
+    type: persistentVolumeClaim
+    storageClass: nfs
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    retain: true
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+    globalMounts:
+      - path: /usr/src/app/store

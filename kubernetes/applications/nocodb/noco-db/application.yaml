@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nocodb
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: nocodb
+    app.kubernetes.io/part-of: everlab
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+
+  sources:
+    - repoURL: ghcr.io/nocodb/charts
+      chart: nocodb
+      targetRevision: 1.0.0
+      helm:
+        releaseName: nocodb
+        valueFiles:
+          - $values/kubernetes/applications/nocodb/noco-db/values.yaml
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/applications/nocodb/noco-db
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nocodb
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

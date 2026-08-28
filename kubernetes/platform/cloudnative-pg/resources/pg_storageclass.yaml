@@ -1,0 +1,28 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: postgres-local
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    openebs.io/cas-type: local
+
+    cas.openebs.io/config: |
+      - name: StorageType
+        value: hostpath
+      - name: BasePath
+        value: /mnt/db-data/postgres
+      - name: FilePermissions
+        data:
+          mode: "0770"
+
+provisioner: openebs.io/local
+
+reclaimPolicy: Retain
+
+volumeBindingMode: WaitForFirstConsumer
+
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: everlab.dev/postgres-storage
+        values:
+          - "true"

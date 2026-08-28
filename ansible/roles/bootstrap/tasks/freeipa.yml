@@ -1,0 +1,55 @@
+---
+- name: Check whether host is already enrolled in FreeIPA
+  ansible.builtin.stat:
+    path: /etc/ipa/default.conf
+  register: bootstrap_ipa_config
+
+- name: Enroll host into FreeIPA
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          'ipa-client-install',
+          '--unattended',
+          '--domain=' ~ ipa_domain,
+          '--realm=' ~ ipa_realm,
+          '--server=' ~ ipa_server,
+          '--hostname=' ~ server_hostname,
+          '--principal=' ~ ipa_admin_user,
+          '--password=' ~ ipa_admin_password
+        ]
+        +
+        (
+          ['--mkhomedir']
+          if bootstrap_freeipa_mkhomedir | bool
+          else []
+        )
+        +
+        (
+          ['--ssh-trust-dns']
+          if bootstrap_freeipa_ssh_trust_dns | bool
+          else []
+        )
+        +
+        (
+          ['--force-join']
+          if bootstrap_freeipa_force_join | bool
+          else []
+        )
+      }}
+  register: bootstrap_ipa_enrollment
+  no_log: true
+  when: not bootstrap_ipa_config.stat.exists
+
+- name: Verify FreeIPA client configuration
+  ansible.builtin.stat:
+    path: /etc/ipa/default.conf
+  register: bootstrap_ipa_verification
+
+- name: Confirm FreeIPA enrollment
+  ansible.builtin.assert:
+    that:
+      - bootstrap_ipa_verification.stat.exists
+    fail_msg: >-
+      FreeIPA enrollment did not create /etc/ipa/default.conf
+      on {{ inventory_hostname }}.

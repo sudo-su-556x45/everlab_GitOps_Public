@@ -1,0 +1,258 @@
+# Immich Helm chart 0.13.1
+# Immich application version v3.0.0
+
+immich:
+  metrics:
+    # The chart's ServiceMonitor assumes API and microservices share one Pod.
+    # They are split below, so repository-managed PodMonitors scrape each one.
+    enabled: false
+
+  persistence:
+    # Existing dynamically provisioned NFS PVC.
+    library:
+      existingClaim: immich-library
+
+  configuration:
+    trash:
+      enabled: true
+      days: 30
+
+    storageTemplate:
+      enabled: false
+
+    job:
+      backgroundTask:
+        concurrency: 5
+
+      # Keep external-library scans conservative because the source is NFS.
+      library:
+        concurrency: 1
+
+      metadataExtraction:
+        concurrency: 3
+
+      # The microservices worker has an 8-CPU limit.
+      # Six leaves capacity for other queues and filesystem activity.
+      thumbnailGeneration:
+        concurrency: 6
+
+      # One NVENC conversion at a time on the P1000.
+      videoConversion:
+        concurrency: 1
+
+      # Requests are sent to the separate A2000 ML service.
+      smartSearch:
+        concurrency: 3
+
+      faceDetection:
+        concurrency: 3
+
+      ocr:
+        concurrency: 1
+
+      search:
+        concurrency: 5
+
+      sidecar:
+        concurrency: 2
+
+      migration:
+        concurrency: 1
+
+      notifications:
+        concurrency: 5
+
+  configurationKind: ConfigMap
+
+# Immich job queue and cache.
+valkey:
+  enabled: true
+
+  controllers:
+    main:
+      containers:
+        main:
+          image:
+            repository: docker.io/valkey/valkey
+            tag: 9.1-alpine@sha256:a35428eba9043cc0b79dbe54100f0c92784f2de00ad09b01182bfb1c5c83d1bd
+            pullPolicy: IfNotPresent
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+  persistence:
+    data:
+      enabled: true
+      type: emptyDir
+
+server:
+  enabled: true
+
+  controllers:
+    # Keep the chart's default "main" controller.
+    # The chart's primary Service targets this controller.
+    main:
+      replicas: 1
+
+      containers:
+        main:
+          image:
+            repository: ghcr.io/immich-app/immich-server
+            tag: v3.0.0
+            pullPolicy: IfNotPresent
+
+          env:
+            TZ: America/Denver
+
+            # Run only the public API/web worker.
+            IMMICH_WORKERS_INCLUDE: api
+
+            # Enable all supported Prometheus telemetry categories.
+            IMMICH_TELEMETRY_INCLUDE: all
+
+            REDIS_HOSTNAME: '{{ printf "%s-valkey" .Release.Name }}'
+            REDIS_PORT: "6379"
+
+            IMMICH_MACHINE_LEARNING_URL: >-
+              {{ printf "http://%s-machine-learning:3003" .Release.Name }}
+
+            DB_HOSTNAME: immich-postgres-rw
+            DB_PORT: "5432"
+            DB_DATABASE_NAME: immich
+
+            DB_USERNAME:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgres-user
+                  key: username
+
+            DB_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgres-user
+                  key: password
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+
+    # Dedicated background-processing worker.
+    microservices-p1000:
+      replicas: 1
+
+      pod:
+        nodeSelector:
+          nvidia.com/gpu.product: Quadro-P1000-SHARED
+
+      containers:
+        main:
+          image:
+            repository: ghcr.io/immich-app/immich-server
+            tag: v3.0.0
+            pullPolicy: IfNotPresent
+
+          env:
+            TZ: America/Denver
+
+            # Disable API and run the microservices worker.
+            IMMICH_WORKERS_EXCLUDE: api
+
+            IMMICH_TELEMETRY_INCLUDE: all
+
+            REDIS_HOSTNAME: '{{ printf "%s-valkey" .Release.Name }}'
+            REDIS_PORT: "6379"
+
+            IMMICH_MACHINE_LEARNING_URL: >-
+              {{ printf "http://%s-machine-learning:3003" .Release.Name }}
+
+            DB_HOSTNAME: immich-postgres-rw
+            DB_PORT: "5432"
+            DB_DATABASE_NAME: immich
+
+            DB_USERNAME:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgres-user
+                  key: username
+
+            DB_PASSWORD:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgres-user
+                  key: password
+
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "8"
+              memory: 8Gi
+              nvidia.com/gpu: 1
+
+  persistence:
+    # Both API and microservices need the same external-library path.
+    external-family-photos:
+      enabled: true
+      type: persistentVolumeClaim
+      existingClaim: immich-external-family-photos
+
+      globalMounts:
+        - path: /external/family-photos
+          readOnly: true
+
+  ingress:
+    main:
+      enabled: false
+
+machine-learning:
+  enabled: true
+
+  controllers:
+    main:
+      replicas: 1
+
+      pod:
+        # Keep CUDA machine learning dedicated to the RTX A2000.
+        nodeSelector:
+          nvidia.com/gpu.product: NVIDIA-RTX-A2000-12GB-SHARED
+
+      containers:
+        main:
+          image:
+            repository: ghcr.io/immich-app/immich-machine-learning
+            tag: v3.0.0-cuda
+            pullPolicy: IfNotPresent
+
+          env:
+            TRANSFORMERS_CACHE: /cache
+            HF_XET_CACHE: /cache/huggingface-xet
+            MPLCONFIGDIR: /cache/matplotlib-config
+
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "6"
+              memory: 10Gi
+              nvidia.com/gpu: 1
+
+  persistence:
+    cache:
+      enabled: true
+      type: persistentVolumeClaim
+      storageClass: nfs
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      annotations:
+        argocd.argoproj.io/sync-options: Prune=false,Delete=false

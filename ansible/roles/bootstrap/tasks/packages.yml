@@ -1,0 +1,27 @@
+---
+
+- name: Update APT package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name: >-
+      {{
+        bootstrap_common_packages
+        + bootstrap_extra_packages
+      }}
+    state: present
+
+- name: Install VM packages
+  ansible.builtin.apt:
+    name: "{{ bootstrap_vm_packages }}"
+    state: present
+  when: system_type == "vm"
+
+- name: Install bare-metal packages
+  ansible.builtin.apt:
+    name: "{{ bootstrap_baremetal_packages }}"
+    state: present
+  when: system_type == "baremetal"

@@ -1,0 +1,40 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: vikunja-postgres
+  namespace: vikunja
+  labels:
+    app.kubernetes.io/name: vikunja-postgres
+    app.kubernetes.io/part-of: vikunja
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  instances: 1
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+
+  bootstrap:
+    initdb:
+      database: vikunja
+      owner: vikunja
+      secret:
+        name: vikunja-postgres-user
+
+  storage:
+    storageClass: nfs
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  affinity:
+    enablePodAntiAffinity: false
+
+  monitoring:
+    enablePodMonitor: true

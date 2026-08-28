@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "External Secrets remoteRef paths are identifiers, not credentials"
+regexTarget = "match"
+regexes = [
+  '''key:\s+(forgejo/application|nocodb/valkey|vikunja/application)''',
+]

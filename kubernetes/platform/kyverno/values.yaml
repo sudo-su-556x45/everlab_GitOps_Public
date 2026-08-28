@@ -1,0 +1,55 @@
+config:
+  # Recommended when Kyverno itself is managed by Argo CD.
+  preserve: false
+
+admissionController:
+  replicas: 1
+
+  serviceMonitor:
+    enabled: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+backgroundController:
+  replicas: 1
+
+  serviceMonitor:
+    enabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+cleanupController:
+  replicas: 1
+
+  serviceMonitor:
+    enabled: true
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+reportsController:
+  replicas: 1
+
+  serviceMonitor:
+    enabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi

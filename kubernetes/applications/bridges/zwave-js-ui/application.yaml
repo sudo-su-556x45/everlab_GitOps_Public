@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zwave-js-ui
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://bjw-s-labs.github.io/helm-charts/
+      chart: app-template
+      targetRevision: "5.0.1"
+
+      helm:
+        releaseName: zwave-js-ui
+        valueFiles:
+          - $values/kubernetes/applications/bridges/zwave-js-ui/values.yaml
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/applications/bridges/zwave-js-ui
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: zwave-js-ui
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true

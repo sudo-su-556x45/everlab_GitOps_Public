@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/app-template-5.0.1/charts/other/app-template/values.schema.json
+
+defaultPodOptions:
+  automountServiceAccountToken: false
+
+controllers:
+  main:
+    type: deployment
+    strategy: Recreate
+
+    annotations:
+      reloader.stakater.com/auto: "true"
+
+    pod:
+      securityContext:
+        fsGroup: 85200014
+        fsGroupChangePolicy: OnRootMismatch
+
+    containers:
+      main:
+        image:
+          repository: ghcr.io/home-assistant/home-assistant
+          tag: stable
+          pullPolicy: IfNotPresent
+
+        env:
+          TZ:
+            value: America/Denver
+
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 8123
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 60
+
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 8123
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 6
+
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 8123
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+
+          limits:
+            cpu: "2"
+            memory: 2Gi
+
+service:
+  main:
+    controller: main
+    type: ClusterIP
+
+    ports:
+      http:
+        port: 8123
+        protocol: TCP
+
+persistence:
+  config:
+    type: persistentVolumeClaim
+
+    storageClass: nfs
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    retain: true
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+    globalMounts:
+      - path: /config

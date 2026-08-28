@@ -1,0 +1,13 @@
+---
+profile: basic
+offline: true
+
+exclude_paths:
+  - .cache/
+  - inventories/prod/group_vars/all/vault.yml
+
+skip_list:
+  # Public role inputs intentionally share the k8s_* inventory namespace.
+  - var-naming[no-role-prefix]
+  # The apt signing key requires a curl-to-gpg dearmor pipeline.
+  - command-instead-of-module

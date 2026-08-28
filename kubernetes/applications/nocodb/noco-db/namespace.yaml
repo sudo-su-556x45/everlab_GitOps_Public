@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nocodb
+  labels:
+    app.kubernetes.io/name: nocodb
+    app.kubernetes.io/part-of: everlab

@@ -1,0 +1,136 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://grafana-community.github.io/helm-charts
+      chart: loki
+      targetRevision: "18.5.2"
+
+      helm:
+        releaseName: loki
+
+        valuesObject:
+          deploymentMode: Monolithic
+
+          loki:
+            auth_enabled: false
+
+            podSecurityContext:
+              runAsNonRoot: true
+              runAsUser: 10001
+              runAsGroup: 10001
+              seccompProfile:
+                type: RuntimeDefault
+
+            commonConfig:
+              replication_factor: 1
+
+            schemaConfig:
+              configs:
+                - from: "2024-04-01"
+                  store: tsdb
+                  object_store: filesystem
+                  schema: v13
+                  index:
+                    prefix: loki_index_
+                    period: 24h
+
+            storage:
+              type: filesystem
+
+            limits_config:
+              retention_period: 168h
+              allow_structured_metadata: true
+              volume_enabled: true
+
+            compactor:
+              retention_enabled: true
+              delete_request_store: filesystem
+
+          singleBinary:
+            replicas: 1
+
+            persistence:
+              enabled: true
+              storageClass: nfs
+              accessModes:
+                - ReadWriteOnce
+              size: 10Gi
+              enableStatefulSetAutoDeletePVC: false
+              whenDeleted: Retain
+              whenScaled: Retain
+              annotations:
+                argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+
+          backend:
+            replicas: 0
+
+          read:
+            replicas: 0
+
+          write:
+            replicas: 0
+
+          gateway:
+            enabled: true
+            replicas: 1
+
+            resources:
+              requests:
+                cpu: 25m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+
+          chunksCache:
+            enabled: false
+
+          resultsCache:
+            enabled: false
+
+          lokiCanary:
+            enabled: true
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/platform/loki
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: loki
+      namespace: monitoring
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+
+  revisionHistoryLimit: 10

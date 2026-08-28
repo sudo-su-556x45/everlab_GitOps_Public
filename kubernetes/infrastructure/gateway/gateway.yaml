@@ -1,0 +1,51 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: everlab-gateway
+  namespace: gateway
+spec:
+  gatewayClassName: cilium
+
+  addresses:
+    - type: IPAddress
+      value: 192.168.12.100
+
+  listeners:
+    # Internal services:
+    # app.prod.everlab.dev
+    - name: https
+      hostname: "*.prod.everlab.dev"
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: everlab-wildcard
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # Directly exposed public services:
+    # app.everlab.dev
+    - name: https-public
+      hostname: "*.everlab.dev"
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: everlab-public-wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All

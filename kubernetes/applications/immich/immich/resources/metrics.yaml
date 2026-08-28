@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich-api-metrics
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-api-metrics
+    app.kubernetes.io/part-of: immich
+spec:
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: immich
+    app.kubernetes.io/name: server
+
+  ports:
+    - name: metrics
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: immich-api
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich
+    app.kubernetes.io/part-of: everlab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich-api-metrics
+      app.kubernetes.io/part-of: immich
+
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich-microservices-metrics
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-microservices-metrics
+    app.kubernetes.io/part-of: immich
+spec:
+  selector:
+    app.kubernetes.io/controller: microservices-p1000
+    app.kubernetes.io/instance: immich
+    app.kubernetes.io/name: server
+
+  ports:
+    - name: metrics
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: immich-microservices
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich
+    app.kubernetes.io/part-of: everlab
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich-microservices-metrics
+      app.kubernetes.io/part-of: immich
+
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

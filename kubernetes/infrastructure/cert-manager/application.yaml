@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: "v1.18.2"
+
+      helm:
+        releaseName: cert-manager
+
+        valuesObject:
+          crds:
+            enabled: true
+
+          prometheus:
+            enabled: true
+
+            servicemonitor:
+              enabled: true
+              interval: 30s
+
+          extraArgs:
+            - --dns01-recursive-nameservers=192.168.10.103:53
+            - --dns01-recursive-nameservers-only
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/infrastructure/cert-manager
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 10

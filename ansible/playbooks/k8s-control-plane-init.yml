@@ -1,0 +1,52 @@
+---
+- name: Initialize first Kubernetes control plane
+  hosts: "{{ target_host }}"
+  gather_facts: false
+  become: true
+
+  vars_prompt:
+    - name: target_host
+      prompt: "Control plane management host or inventory name"
+      private: false
+
+    - name: run_bootstrap
+      prompt: "Run the bootstrap role first? true or false"
+      default: "false"
+      private: false
+
+  pre_tasks:
+    - name: Run bootstrap role
+      ansible.builtin.include_role:
+        name: bootstrap
+      vars:
+        ansible_user: "{{ bootstrap_user }}"
+        ansible_password: "{{ bootstrap_password }}"
+        ansible_become_password: "{{ bootstrap_password }}"
+        bootstrap_cleanup_enabled: false
+      when: run_bootstrap | bool
+
+    - name: Gather system facts
+      ansible.builtin.setup:
+
+    - name: Validate control-plane variables
+      ansible.builtin.assert:
+        that:
+          - k8s_cluster_ip is defined
+          - k8s_cluster_ip | string | length > 0
+          - k8s_hostname is defined
+          - k8s_hostname | string | length > 0
+          - k8s_api_hostname is defined
+          - k8s_api_hostname | string | length > 0
+          - k8s_api_port is defined
+          - k8s_pod_cidr is defined
+          - k8s_pod_cidr | string | length > 0
+          - k8s_service_cidr is defined
+          - k8s_service_cidr | string | length > 0
+        fail_msg: >-
+          Host {{ inventory_hostname }} must define k8s_cluster_ip,
+          k8s_hostname, k8s_api_hostname, k8s_api_port,
+          k8s_pod_cidr, and k8s_service_cidr.
+
+  roles:
+    - role: k8s_common
+    - role: k8s_control_plane

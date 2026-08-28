@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openebs-localpv
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://openebs.github.io/dynamic-localpv-provisioner
+      chart: localpv-provisioner
+      targetRevision: "4.5.0"
+
+      helm:
+        releaseName: openebs-localpv
+
+        valuesObject:
+          analytics:
+            enabled: false
+
+          hostpathClass:
+            # A restricted StorageClass is managed from Git.
+            enabled: false
+
+          localpv:
+            replicas: 1
+
+            resources:
+              requests:
+                cpu: 25m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/infrastructure/openebs-localpv
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 10

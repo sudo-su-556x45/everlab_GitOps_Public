@@ -1,0 +1,22 @@
+---
+- name: Install bootstrap prerequisites
+  ansible.builtin.import_tasks: prerequisites.yml
+
+- name: Validate bootstrap configuration
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Configure hostname
+  ansible.builtin.import_tasks: hostname.yml
+
+- name: Install packages
+  ansible.builtin.import_tasks: packages.yml
+
+- name: Configure services
+  ansible.builtin.import_tasks: services.yml
+
+- name: Enroll FreeIPA client
+  ansible.builtin.import_tasks: freeipa.yml
+
+- name: Disable bootstrap account
+  ansible.builtin.import_tasks: cleanup.yml
+  when: bootstrap_cleanup_enabled | bool

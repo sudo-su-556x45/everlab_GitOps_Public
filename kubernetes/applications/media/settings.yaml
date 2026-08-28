@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: media-stack-settings
+  namespace: media
+data:
+  TZ: America/Denver
+  PUID: "85200024"
+  PGID: "85200014"
+  UMASK: "002"

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xcel-itron2mqtt
+  labels:
+    app.kubernetes.io/name: xcel-itron2mqtt
+    app.kubernetes.io/part-of: everlab

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: solaredge2mqtt
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+    targetRevision: main
+    path: kubernetes/applications/bridges/solaredge2mqtt
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: solaredge2mqtt
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true

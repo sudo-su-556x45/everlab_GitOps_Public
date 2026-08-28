@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telegraf-config
+  namespace: telegraf
+
+data:
+  telegraf.conf: |
+
+    [agent]
+      interval = "10s"
+      round_interval = true
+      metric_batch_size = 1000
+      metric_buffer_limit = 10000
+      collection_jitter = "0s"
+      flush_interval = "10s"
+      flush_jitter = "0s"
+
+    [[outputs.influxdb_v2]]
+      urls = [
+        "http://influxdb.influxdb.svc.cluster.local:8086"
+      ]
+
+      token = "${INFLUX_TOKEN}"
+
+      organization = "everlab"
+
+      bucket = "telemetry"
+
+    [[inputs.mqtt_consumer]]
+
+      servers = [
+        "tcp://mosquitto.mosquitto.svc.cluster.local:1883"
+      ]
+
+      topics = [
+        "solaredge/modbus/inverter",
+        "solaredge/powerflow"
+      ]
+
+      username = "${MQTT_USERNAME}"
+      password = "${MQTT_PASSWORD}"
+
+      qos = 0
+
+      data_format = "json"
+
+    [[inputs.mqtt_consumer]]
+
+      servers = [
+        "tcp://mosquitto.mosquitto.svc.cluster.local:1883"
+      ]
+
+      topics = [
+        "homeassistant/sensor/+/+/state",
+        "homeassistant/+/sensor/+/+/state"
+      ]
+
+      username = "${MQTT_USERNAME}"
+      password = "${MQTT_PASSWORD}"
+
+      qos = 0
+      topic_tag = "topic"
+
+      name_override = "xcel_meter"
+      data_format = "value"
+      data_type = "float"

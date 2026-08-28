@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: immich-pg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+    targetRevision: main
+    path: kubernetes/applications/immich/postgres
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: immich
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: false
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+
+  revisionHistoryLimit: 5

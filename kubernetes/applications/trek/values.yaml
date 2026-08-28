@@ -1,0 +1,67 @@
+image:
+  repository: mauriceboe/trek
+  tag: "3.4.1"
+  pullPolicy: IfNotPresent
+
+# TREK uses SQLite on the data PVC. Recreate prevents two pods from
+# attempting to access the same single-writer database during updates.
+updateStrategy: Recreate
+
+service:
+  type: ClusterIP
+  port: 3000
+
+env:
+  NODE_ENV: production
+  PORT: "3000"
+  TZ: America/Denver
+  LOG_LEVEL: info
+
+  APP_URL: https://trek.prod.everlab.dev
+  ALLOWED_ORIGINS: https://trek.prod.everlab.dev
+
+  FORCE_HTTPS: "true"
+  TRUST_PROXY: "1"
+  COOKIE_SECURE: "true"
+
+  DEFAULT_LANGUAGE: en
+
+  # Allows TREK integrations to reach internal services such as Immich.
+  ALLOW_INTERNAL_NETWORK: "true"
+
+# TREK can generate and persist its own encryption key in a Kubernetes
+# Secret. This avoids committing the key to Git.
+generateEncryptionKey: false
+
+existingSecret: trek-secret
+existingSecretKey: ENCRYPTION_KEY
+
+persistence:
+  enabled: true
+
+  data:
+    size: 5Gi
+    storageClassName: nfs
+    existingClaim: ""
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+  uploads:
+    size: 20Gi
+    storageClassName: nfs
+    existingClaim: ""
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# We are using Cilium Gateway API instead of a Kubernetes Ingress.
+ingress:
+  enabled: false

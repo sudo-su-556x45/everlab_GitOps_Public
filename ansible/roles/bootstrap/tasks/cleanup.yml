@@ -1,0 +1,14 @@
+---
+- name: Validate bootstrap account
+  ansible.builtin.assert:
+    that:
+      - bootstrap_user is defined
+      - bootstrap_user | length > 0
+      - bootstrap_user != "root"
+    fail_msg: >-
+      Refusing to disable an undefined account or the root account.
+
+- name: Disable bootstrap account login shell
+  ansible.builtin.user:
+    name: "{{ bootstrap_user }}"
+    shell: /usr/sbin/nologin

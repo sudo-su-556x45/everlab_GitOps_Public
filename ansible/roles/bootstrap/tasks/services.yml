@@ -1,0 +1,19 @@
+---
+- name: Enable and start SSH
+  ansible.builtin.service:
+    name: ssh
+    enabled: true
+    state: started
+
+- name: Enable and start chrony
+  ansible.builtin.service:
+    name: chrony
+    enabled: true
+    state: started
+
+- name: Enable and start QEMU guest agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    enabled: true
+    state: started
+  when: system_type == "vm"

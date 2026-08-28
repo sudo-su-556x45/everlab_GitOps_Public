@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ollama
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/part-of: everlab
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ollama
+        app.kubernetes.io/part-of: everlab
+
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-RTX-A2000-12GB-SHARED
+
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+
+            - name: OLLAMA_NO_CLOUD
+              value: "1"
+
+            - name: OLLAMA_KEEP_ALIVE
+              value: "10m"
+
+            - name: OLLAMA_NUM_PARALLEL
+              value: "1"
+
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "1"
+
+            - name: OLLAMA_FLASH_ATTENTION
+              value: "1"
+
+            - name: OLLAMA_KV_CACHE_TYPE
+              value: "q8_0"
+
+          ports:
+            - name: http
+              containerPort: 11434
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+              nvidia.com/gpu: "1"
+
+            limits:
+              cpu: "8"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 12
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models

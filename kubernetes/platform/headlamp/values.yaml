@@ -1,0 +1,45 @@
+config:
+  inCluster: true
+  enableHelm: false
+
+serviceAccount:
+  create: true
+
+clusterRoleBinding:
+  create: false
+
+service:
+  type: ClusterIP
+  port: 80
+
+httpRoute:
+  enabled: true
+
+  parentRefs:
+    - name: everlab-gateway
+      namespace: gateway
+
+  hostnames:
+    - headlamp.prod.everlab.dev
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault

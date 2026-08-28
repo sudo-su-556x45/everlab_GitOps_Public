@@ -1,0 +1,16 @@
+---
+timezone: America/Denver
+domain: local.everlab.dev
+
+ansible_user: ansible
+ansible_ssh_private_key_file: ~/.ssh/ansible
+
+bootstrap_user: bootstrap
+bootstrap_password: "{{ vault_bootstrap_password }}"
+
+# IPA Information
+ipa_domain: local.everlab.dev
+ipa_realm: LOCAL.EVERLAB.DEV
+ipa_server: prod-ipa-01.local.everlab.dev
+ipa_admin_user: everett
+ipa_admin_password: "{{ vault_ipa_admin_password }}"

@@ -1,0 +1,101 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: "10.1.4"
+
+      helm:
+        releaseName: argocd
+
+        valuesObject:
+          configs:
+            params:
+              server.insecure: true
+
+          server:
+            service:
+              type: ClusterIP
+
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: true
+                interval: 30s
+
+          controller:
+            replicas: 1
+
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: true
+                interval: 30s
+
+          repoServer:
+            replicas: 1
+
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: true
+                interval: 30s
+
+          applicationSet:
+            replicas: 1
+
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: true
+                interval: 30s
+
+          notifications:
+            enabled: true
+
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: true
+                interval: 30s
+
+          dex:
+            enabled: true
+
+          redis:
+            enabled: true
+
+          crds:
+            install: false
+
+          global:
+            networkPolicy:
+              create: false
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/platform/argocd
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+  revisionHistoryLimit: 10

@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radicale-config
+  namespace: radicale
+  labels:
+    app.kubernetes.io/name: radicale
+data:
+  config: |
+    [server]
+    hosts = 0.0.0.0:5232
+    max_connections = 20
+    max_content_length = 100000000
+    max_resource_size = 10000000
+    timeout = 30
+
+    [auth]
+    type = htpasswd
+    htpasswd_filename = /etc/radicale/users
+    htpasswd_encryption = autodetect
+    htpasswd_cache = true
+    cache_logins = true
+    realm = Everlab Radicale
+    delay = 1
+
+    [rights]
+    type = owner_only
+
+    [storage]
+    type = multifilesystem
+    filesystem_folder = /var/lib/radicale/collections
+    folder_umask = 0027
+
+    [web]
+    type = internal
+    prefer_browser_login = true
+
+    [logging]
+    level = info
+    mask_passwords = true
+
+    [headers]
+    Content-Security-Policy = default-src 'self'; object-src 'none'

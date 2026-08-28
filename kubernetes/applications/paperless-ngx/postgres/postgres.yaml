@@ -1,0 +1,42 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: paperless-postgres
+  namespace: paperless-ngx
+  labels:
+    app.kubernetes.io/name: paperless-postgres
+    app.kubernetes.io/part-of: paperless-ngx
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  instances: 1
+
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+
+  bootstrap:
+    initdb:
+      database: paperless
+      owner: paperless
+      secret:
+        name: paperless-postgres-user
+
+  storage:
+    storageClass: nfs
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  monitoring:
+    enablePodMonitor: true
+
+  backup:
+    retentionPolicy: "30d"
+
+  affinity:
+    enablePodAntiAffinity: false

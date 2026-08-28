@@ -1,0 +1,88 @@
+kind: CronJob
+
+schedule: "*/15 * * * *"
+
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+priorityClassName: system-cluster-critical
+
+deschedulerPolicyAPIVersion: descheduler/v1alpha2
+
+deschedulerPolicy:
+  maxNoOfPodsToEvictPerNode: 3
+  maxNoOfPodsToEvictPerNamespace: 5
+  maxNoOfPodsToEvictTotal: 10
+
+  profiles:
+    - name: default
+
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+            podProtections:
+              extraEnabled:
+                - PodsWithPVC
+
+        - name: RemoveDuplicates
+
+        - name: RemovePodsViolatingNodeAffinity
+          args:
+            nodeAffinityType:
+              - requiredDuringSchedulingIgnoredDuringExecution
+
+        - name: RemovePodsViolatingNodeTaints
+
+        - name: RemovePodsViolatingInterPodAntiAffinity
+
+        - name: RemovePodsViolatingTopologySpreadConstraint
+
+      plugins:
+        balance:
+          enabled:
+            - RemoveDuplicates
+            - RemovePodsViolatingTopologySpreadConstraint
+
+        deschedule:
+          enabled:
+            - RemovePodsViolatingNodeTaints
+            - RemovePodsViolatingNodeAffinity
+            - RemovePodsViolatingInterPodAntiAffinity
+
+service:
+  enabled: true
+
+serviceMonitor:
+  enabled: true
+  namespace: kube-system
+  interval: 30s
+  insecureSkipVerify: true
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true

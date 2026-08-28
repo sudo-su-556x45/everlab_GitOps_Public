@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: solaredge2mqtt
+  namespace: solaredge2mqtt
+  labels:
+    app.kubernetes.io/name: solaredge2mqtt
+    app.kubernetes.io/part-of: everlab
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: solaredge2mqtt
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: solaredge2mqtt
+        app.kubernetes.io/part-of: everlab
+
+    spec:
+      initContainers:
+        - name: build-config
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: MQTT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mosquitto-auth
+                  key: username
+
+            - name: MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mosquitto-auth
+                  key: password
+
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp /config-source/configuration.yml /config/configuration.yml
+
+              cat > /config/secrets.yml <<EOF
+              mqtt_username: "${MQTT_USERNAME}"
+              mqtt_password: "${MQTT_PASSWORD}"
+              EOF
+
+              chmod 600 /config/secrets.yml
+
+          volumeMounts:
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+
+            - name: config
+              mountPath: /config
+
+      containers:
+        - name: solaredge2mqtt
+          image: ghcr.io/deroetzi/solaredge2mqtt:latest
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: TZ
+              value: America/Denver
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+
+      volumes:
+        - name: config-source
+          configMap:
+            name: solaredge2mqtt-config
+
+        - name: config
+          emptyDir: {}

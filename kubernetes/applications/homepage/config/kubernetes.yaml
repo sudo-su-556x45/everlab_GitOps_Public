@@ -1,0 +1,4 @@
+# config/kubernetes.yaml
+mode: cluster
+ingress: false
+gateway: true

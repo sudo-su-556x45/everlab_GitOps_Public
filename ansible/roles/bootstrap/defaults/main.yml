@@ -1,0 +1,31 @@
+---
+bootstrap_cleanup_enabled: true
+
+bootstrap_common_packages:
+  - sudo
+  - python3
+  - curl
+  - wget
+  - git
+  - vim
+  - ca-certificates
+  - gnupg
+  - chrony
+  - rsync
+  - dnsutils
+  - openssh-server
+  - freeipa-client
+
+bootstrap_vm_packages:
+  - qemu-guest-agent
+
+bootstrap_baremetal_packages:
+  - smartmontools
+  - lm-sensors
+  - ethtool
+
+bootstrap_extra_packages: []
+
+bootstrap_freeipa_force_join: true
+bootstrap_freeipa_mkhomedir: true
+bootstrap_freeipa_ssh_trust_dns: true

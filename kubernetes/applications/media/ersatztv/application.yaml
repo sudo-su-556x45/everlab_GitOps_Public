@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ersatztv
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: ersatztv
+    app.kubernetes.io/part-of: media-stack
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+    targetRevision: main
+    path: kubernetes/applications/media/ersatztv
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: media
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 10

@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-synapse-config
+  namespace: matrix
+  labels:
+    app.kubernetes.io/name: matrix
+    app.kubernetes.io/part-of: everlab
+data:
+  homeserver.yaml: |
+    server_name: matrix.prod.everlab.dev
+    public_baseurl: https://matrix.prod.everlab.dev/
+    pid_file: /tmp/homeserver.pid
+    web_client_location: https://app.element.io/
+    enable_metrics: true
+
+    listeners:
+      - port: 8008
+        tls: false
+        type: http
+        x_forwarded: true
+        resources:
+          - names:
+              - client
+              - federation
+            compress: false
+
+      - port: 9000
+        type: metrics
+        bind_addresses:
+          - "0.0.0.0"
+
+    database:
+      name: psycopg2
+      txn_limit: 10000
+      args:
+        user: __POSTGRES_USER__
+        password: __POSTGRES_PASSWORD__
+        dbname: synapse
+        host: matrix-postgres-rw
+        port: 5432
+        cp_min: 5
+        cp_max: 10
+
+    media_store_path: /data/media_store
+    signing_key_path: /data/matrix.prod.everlab.dev.signing.key
+    enable_registration: false
+    report_stats: false
+
+    trusted_key_servers:
+      - server_name: matrix.org

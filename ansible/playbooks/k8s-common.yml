@@ -1,0 +1,12 @@
+---
+- name: Configure Kubernetes common prerequisites
+  hosts: "{{ target_host }}"
+  gather_facts: true
+
+  vars_prompt:
+    - name: target_host
+      prompt: "Target host or group"
+      private: false
+
+  roles:
+    - k8s_common

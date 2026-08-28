@@ -1,0 +1,60 @@
+fullnameOverride: blackbox-exporter
+
+serviceMonitor:
+  enabled: true
+
+config:
+  modules:
+    http_internal:
+      prober: http
+      timeout: 10s
+      http:
+        valid_status_codes:
+          - 200
+          - 201
+          - 202
+          - 203
+          - 204
+          - 205
+          - 206
+          - 301
+          - 302
+          - 303
+          - 307
+          - 308
+          - 401
+          - 403
+        follow_redirects: false
+        preferred_ip_protocol: ip4
+        tls_config:
+          ca_file: /etc/blackbox/certs/ipa-ca.crt
+
+extraConfigmapMounts:
+  - name: ipa-ca
+    mountPath: /etc/blackbox/certs/ipa-ca.crt
+    subPath: ca.crt
+    configMap: everlab-ipa-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

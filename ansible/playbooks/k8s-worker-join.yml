@@ -1,0 +1,187 @@
+---
+- name: Collect Kubernetes worker join inputs
+  hosts: localhost
+  gather_facts: false
+
+  vars_prompt:
+    - name: control_plane_host_input
+      prompt: "Existing control-plane inventory host"
+      private: false
+      default: "prod-k8m-01"
+
+    - name: worker_targets_input
+      prompt: "Worker host, comma-separated hosts, or inventory group"
+      private: false
+
+    - name: run_bootstrap_input
+      prompt: "Run bootstrap role on worker targets? true or false"
+      private: false
+      default: "false"
+
+  tasks:
+    - name: Store worker join inputs
+      ansible.builtin.set_fact:
+        control_plane_host: "{{ control_plane_host_input | trim }}"
+        worker_targets: "{{ worker_targets_input | trim }}"
+        run_bootstrap: "{{ run_bootstrap_input | bool }}"
+
+    - name: Validate worker join inputs
+      ansible.builtin.assert:
+        that:
+          - control_plane_host | length > 0
+          - worker_targets | length > 0
+        fail_msg: >-
+          An existing control-plane inventory host and a worker
+          inventory pattern are required.
+
+
+- name: Optionally bootstrap Kubernetes workers
+  hosts: >-
+    {{
+      (hostvars | default({}))
+      .get('localhost', {})
+      .get('worker_targets', 'localhost')
+    }}
+  gather_facts: false
+  become: true
+
+  vars:
+    ansible_user: "{{ bootstrap_user }}"
+    ansible_password: "{{ bootstrap_password }}"
+    ansible_become_password: "{{ bootstrap_password }}"
+    ansible_ssh_private_key_file: ""
+    bootstrap_cleanup_enabled: true
+    ansible_ssh_common_args: >-
+      -o ProxyCommand=none
+      -o PreferredAuthentications=password
+      -o PubkeyAuthentication=no
+      -o StrictHostKeyChecking=accept-new
+
+  roles:
+    - role: bootstrap
+      when: hostvars['localhost']['run_bootstrap'] | bool
+
+
+- name: Generate fresh Kubernetes worker join command
+  hosts: >-
+    {{
+      (hostvars | default({}))
+      .get('localhost', {})
+      .get('control_plane_host', 'localhost')
+    }}
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Generate worker join command
+      ansible.builtin.command:
+        argv:
+          - kubeadm
+          - token
+          - create
+          - --print-join-command
+          - --kubeconfig
+          - /etc/kubernetes/admin.conf
+      register: worker_join_command
+      changed_when: false
+      no_log: true
+
+    - name: Store generated worker join command
+      ansible.builtin.set_fact:
+        generated_worker_join_command: "{{ worker_join_command.stdout }}"
+      no_log: true
+
+
+- name: Configure and join Kubernetes workers
+  hosts: >-
+    {{
+      (hostvars | default({}))
+      .get('localhost', {})
+      .get('worker_targets', 'localhost')
+    }}
+  gather_facts: true
+  become: true
+
+  vars:
+    control_plane_inventory_host: >-
+      {{ hostvars['localhost']['control_plane_host'] }}
+
+    node_roles: >-
+      {{
+        k8s_node_roles
+        | default(['worker'])
+        | unique
+        | list
+      }}
+
+    worker_join_argv: >-
+      {{
+        hostvars[control_plane_inventory_host]
+        .generated_worker_join_command
+        .split()
+        + ['--node-name=' ~ k8s_hostname]
+      }}
+
+  pre_tasks:
+    - name: Validate worker Kubernetes variables
+      ansible.builtin.assert:
+        that:
+          - k8s_cluster_ip is defined
+          - k8s_cluster_ip | string | length > 0
+          - k8s_hostname is defined
+          - k8s_hostname | string | length > 0
+          - k8s_node_roles is not defined
+            or (
+              k8s_node_roles is sequence
+              and k8s_node_roles is not string
+            )
+        fail_msg: >-
+          Worker {{ inventory_hostname }} must define k8s_cluster_ip
+          and k8s_hostname. If k8s_node_roles is defined, it must be
+          a YAML list.
+
+  roles:
+    - role: k8s_common
+
+  tasks:
+    - name: Join worker to Kubernetes cluster
+      ansible.builtin.command:
+        argv: "{{ worker_join_argv }}"
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+      no_log: true
+
+    - name: Wait for worker to register with Kubernetes API
+      delegate_to: "{{ control_plane_inventory_host }}"
+      become: true
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - /etc/kubernetes/admin.conf
+          - get
+          - node
+          - "{{ k8s_hostname }}"
+      register: worker_registration
+      changed_when: false
+      retries: 20
+      delay: 3
+      until: worker_registration.rc == 0
+
+    - name: Label worker node roles
+      delegate_to: "{{ control_plane_inventory_host }}"
+      become: true
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - /etc/kubernetes/admin.conf
+          - label
+          - node
+          - "{{ k8s_hostname }}"
+          - "node-role.kubernetes.io/{{ item }}="
+          - --overwrite
+      loop: "{{ node_roles }}"
+      register: node_role_label_result
+      changed_when: >-
+        'not labeled' not in node_role_label_result.stdout

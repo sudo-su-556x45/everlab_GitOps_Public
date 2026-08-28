@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trek
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: trek
+    app.kubernetes.io/part-of: everlab
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://chart.liketrek.com
+      chart: trek
+      targetRevision: 3.4.1
+      helm:
+        releaseName: trek
+        valueFiles:
+          - $values/kubernetes/applications/trek/values.yaml
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/applications/trek
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trek
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

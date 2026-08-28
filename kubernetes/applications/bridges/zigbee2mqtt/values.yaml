@@ -1,0 +1,124 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/app-template-5.0.1/charts/other/app-template/values.schema.json
+
+defaultPodOptions:
+  automountServiceAccountToken: false
+
+  nodeSelector:
+    radio-controllers: "true"
+
+controllers:
+  main:
+    type: deployment
+    replicas: 1
+    strategy: Recreate
+
+    annotations:
+      reloader.stakater.com/auto: "true"
+
+    containers:
+      main:
+        image:
+          repository: ghcr.io/koenkk/zigbee2mqtt
+          tag: "2.13.0"
+          pullPolicy: IfNotPresent
+
+        env:
+          TZ:
+            value: America/Denver
+
+          ZIGBEE2MQTT_DATA:
+            value: /app/data
+
+          ZIGBEE2MQTT_CONFIG_MQTT_SERVER:
+            value: mqtt://mosquitto.mosquitto.svc.cluster.local:1883
+
+          ZIGBEE2MQTT_CONFIG_MQTT_BASE_TOPIC:
+            value: zigbee2mqtt
+
+          ZIGBEE2MQTT_CONFIG_MQTT_USER:
+            valueFrom:
+              secretKeyRef:
+                name: mosquitto-auth
+                key: username
+
+          ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: mosquitto-auth
+                key: password
+
+          ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED:
+            value: "true"
+
+          ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED:
+            value: "true"
+
+          ZIGBEE2MQTT_CONFIG_FRONTEND_PORT:
+            value: "8080"
+
+          ZIGBEE2MQTT_CONFIG_SERIAL_PORT:
+            value: /dev/ttyUSB0
+
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 2
+              failureThreshold: 30
+
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              periodSeconds: 10
+              timeoutSeconds: 2
+              failureThreshold: 6
+
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              periodSeconds: 30
+              timeoutSeconds: 2
+              failureThreshold: 5
+
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+
+          limits:
+            memory: 512Mi
+            everlab.dev/zigbee: 1
+
+service:
+  main:
+    controller: main
+    type: ClusterIP
+
+    ports:
+      http:
+        port: 8080
+        protocol: TCP
+
+persistence:
+  data:
+    type: persistentVolumeClaim
+    storageClass: nfs
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    retain: true
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+    globalMounts:
+      - path: /app/data

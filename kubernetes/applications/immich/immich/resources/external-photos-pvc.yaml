@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-external-family-photos
+  namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadOnlyMany
+
+  storageClassName: ""
+  volumeName: immich-external-family-photos
+
+  resources:
+    requests:
+      storage: 10Ti

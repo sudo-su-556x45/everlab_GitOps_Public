@@ -1,0 +1,196 @@
+---
+- name: Disable swap now
+  become: true
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: Disable swap in fstab
+  become: true
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+# -----------------------------
+# Kernel modules + sysctl
+# -----------------------------
+- name: Load required kernel modules at boot
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    mode: "0644"
+    content: "{{ k8s_kernel_modules | join('\n') }}\n"
+
+- name: Load required kernel modules
+  become: true
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ k8s_kernel_modules }}"
+
+- name: Configure Kubernetes sysctl
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/k8s.conf
+    mode: "0644"
+    content: |-
+      {% for key, value in k8s_sysctl.items() %}
+      {{ key }} = {{ value }}
+      {% endfor %}
+  notify: Apply Kubernetes sysctl settings
+
+# -----------------------------
+# Base packages
+# -----------------------------
+- name: Install OS prerequisites
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    name: "{{ k8s_prerequisite_packages }}"
+    state: present
+
+# -----------------------------
+# CNI directory
+# -----------------------------
+- name: Ensure Kubernetes CNI binary directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ k8s_cni_bin_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure Kubernetes CNI config directory exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ k8s_cni_conf_dir }}"
+    state: directory
+    mode: "0755"
+
+# -----------------------------
+# Kubernetes APT repo
+# -----------------------------
+- name: Create apt keyrings directory
+  become: true
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Kubernetes apt key
+  become: true
+  ansible.builtin.shell: |
+    curl -fsSL {{ k8s_repo_key | quote }} \
+    | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes apt repository
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    mode: "0644"
+    content: |
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] {{ k8s_repo_url }} /
+
+- name: Install Kubernetes packages
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    name: "{{ k8s_packages + k8s_additional_packages }}"
+    state: present
+
+- name: Hold Kubernetes packages
+  become: true
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ k8s_packages }}"
+
+# -----------------------------
+# containerd config
+# -----------------------------
+- name: Generate default containerd config
+  become: true
+  ansible.builtin.command: containerd config default
+  register: k8s_common_containerd_default_config
+  changed_when: false
+
+- name: Write containerd config
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ k8s_containerd_config_path }}"
+    mode: "0644"
+    content: >-
+      {{
+        k8s_common_containerd_default_config.stdout
+        | replace('SystemdCgroup = false', 'SystemdCgroup = true')
+        | regex_replace(
+          'sandbox_image = \"[^\"]+\"',
+          'sandbox_image = \"' ~ k8s_pause_image ~ '\"'
+        )
+      }}
+  notify: Restart containerd
+
+- name: Ensure containerd uses correct CNI binary directory
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ k8s_containerd_config_path }}"
+    regexp: '^\s*bin_dir ='
+    line: '      bin_dir = "{{ k8s_cni_bin_dir }}"'
+    insertafter: '\[plugins."io.containerd.grpc.v1.cri".cni\]'
+  notify: Restart containerd
+
+- name: Ensure containerd uses correct CNI config directory
+  become: true
+  ansible.builtin.lineinfile:
+    path: "{{ k8s_containerd_config_path }}"
+    regexp: '^\s*conf_dir ='
+    line: '      conf_dir = "{{ k8s_cni_conf_dir }}"'
+    insertafter: '\[plugins."io.containerd.grpc.v1.cri".cni\]'
+  notify: Restart containerd
+
+- name: Enable containerd
+  become: true
+  ansible.builtin.service:
+    name: containerd
+    enabled: true
+
+- name: Enable kubelet
+  become: true
+  ansible.builtin.service:
+    name: kubelet
+    enabled: true
+
+# -----------------------------
+# crictl
+# -----------------------------
+- name: Configure crictl
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/crictl.yaml
+    mode: "0644"
+    content: |
+      runtime-endpoint: unix:///run/containerd/containerd.sock
+      image-endpoint: unix:///run/containerd/containerd.sock
+      timeout: 10
+      debug: false
+
+- name: Add EverLab Kubernetes network hosts entries
+  become: true
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} EVERLAB K8S NETWORK HOSTS"
+    block: |
+      {% for host in groups['k8s'] %}
+      {{ hostvars[host].k8s_cluster_ip }}  {{ hostvars[host].k8s_hostname }}
+      {% endfor %}
+      {{ k8s_api_vip }}  {{ k8s_api_hostname }}
+      {{ nfs_csi_server }}  prod-nfs-01.k8-nfs.everlab.dev
+
+- name: Configure kubelet to use VLAN 11 node IP
+  become: true
+  ansible.builtin.copy:
+    dest: /etc/default/kubelet
+    mode: "0644"
+    content: |
+      KUBELET_EXTRA_ARGS=--node-ip={{ k8s_cluster_ip }}

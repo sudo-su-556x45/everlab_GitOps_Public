@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keda-http-add-on
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "25"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://kedacore.github.io/charts
+      chart: keda-add-ons-http
+      targetRevision: "0.15.0"
+
+      helm:
+        releaseName: keda-http-add-on
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/platform/keda-http-add-on
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keda
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  revisionHistoryLimit: 10

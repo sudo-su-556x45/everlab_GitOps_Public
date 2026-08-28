@@ -1,0 +1,173 @@
+fullnameOverride: kube-prometheus-stack
+
+defaultRules:
+  create: true
+
+grafana:
+  enabled: true
+
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
+  defaultDashboardsEnabled: true
+  defaultDashboardsTimezone: browser
+
+  service:
+    type: ClusterIP
+
+  initChownData:
+    enabled: false
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 472
+    runAsGroup: 472
+    fsGroup: null
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: nfs
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+  grafana.ini:
+    server:
+      domain: grafana.prod.everlab.dev
+      root_url: https://grafana.prod.everlab.dev
+    users:
+      default_theme: dark
+
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    retention: 7d
+    retentionSize: 8GB
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 2000
+      seccompProfile:
+        type: RuntimeDefault
+
+    storageSpec:
+      volumeClaimTemplate:
+        metadata:
+          annotations:
+            argocd.argoproj.io/sync-options: Prune=false,Delete=false
+        spec:
+          storageClassName: nfs
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+
+    # Discover ServiceMonitors and PodMonitors created by other
+    # applications, including Cilium and NVIDIA DCGM Exporter.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    serviceMonitorNamespaceSelector: {}
+    podMonitorNamespaceSelector: {}
+    probeNamespaceSelector: {}
+    ruleNamespaceSelector: {}
+
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 2000
+      seccompProfile:
+        type: RuntimeDefault
+
+    storage:
+      volumeClaimTemplate:
+        metadata:
+          annotations:
+            argocd.argoproj.io/sync-options: Prune=false,Delete=false
+        spec:
+          storageClassName: nfs
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+# These kubeadm components commonly listen only on localhost unless
+# explicitly reconfigured. Disable their monitors initially to avoid
+# false TargetDown alerts.
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeEtcd:
+  enabled: false

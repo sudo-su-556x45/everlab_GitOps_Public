@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - zigbee2mqtt/application.yaml
+  - zwave-js-ui/application.yaml
+  - ring-mqtt/application.yaml
+  - solaredge2mqtt/application.yaml
+  - xcel-itron2mqtt/application.yaml
+  - esphome/application.yaml

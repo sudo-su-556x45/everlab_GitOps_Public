@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vikunja-pg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+    targetRevision: main
+    path: kubernetes/applications/vikunja/postgres
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vikunja
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: false
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+
+  revisionHistoryLimit: 5

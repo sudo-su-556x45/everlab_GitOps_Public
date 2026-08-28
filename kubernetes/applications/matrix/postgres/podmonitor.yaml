@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: matrix-postgres
+  namespace: matrix
+  labels:
+    app.kubernetes.io/name: matrix-postgres
+    app.kubernetes.io/part-of: matrix
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: matrix-postgres
+
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

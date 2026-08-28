@@ -1,0 +1,86 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: headlamp-operator
+  labels:
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/part-of: everlab
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - persistentvolumes
+      - pods
+      - pods/log
+      - replicationcontrollers
+      - resourcequotas
+      - serviceaccounts
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+
+  - apiGroups:
+      - apps
+      - autoscaling
+      - batch
+      - discovery.k8s.io
+      - gateway.networking.k8s.io
+      - networking.k8s.io
+      - policy
+      - rbac.authorization.k8s.io
+      - storage.k8s.io
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+      - watch
+
+  - apiGroups:
+      - argoproj.io
+      - cert-manager.io
+      - cilium.io
+      - external-secrets.io
+      - monitoring.coreos.com
+      - postgresql.cnpg.io
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+      - watch
+
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - delete
+
+  - apiGroups:
+      - ""
+    resources:
+      - pods/attach
+      - pods/exec
+      - pods/portforward
+    verbs:
+      - create
+
+  - apiGroups:
+      - apps
+    resources:
+      - deployments/scale
+      - statefulsets/scale
+    verbs:
+      - get
+      - patch
+      - update

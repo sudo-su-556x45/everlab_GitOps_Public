@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: piper
+  namespace: ai
+  labels:
+    app.kubernetes.io/name: piper
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: piper
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: piper
+
+    spec:
+      containers:
+        - name: piper
+          image: rhasspy/wyoming-piper:latest
+
+          ports:
+            - name: wyoming
+              containerPort: 10200
+
+          args:
+            # Voice model
+            - "--voice"
+            - "en_US-lessac-medium"
+
+            # Store models here
+            - "--data-dir"
+            - "/data"
+
+            # Automatically download missing models
+            - "--download-dir"
+            - "/data"
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+
+          volumeMounts:
+            - name: models
+              mountPath: /data
+
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: piper-models

@@ -1,0 +1,40 @@
+installCRDs: true
+
+replicaCount: 1
+leaderElect: false
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+serviceMonitor:
+  enabled: true
+
+webhook:
+  create: true
+
+  serviceMonitor:
+    enabled: true
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+certController:
+  create: true
+
+  serviceMonitor:
+    enabled: true
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 128Mi

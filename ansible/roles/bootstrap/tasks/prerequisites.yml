@@ -1,0 +1,35 @@
+---
+- name: Prepare Debian for Ansible
+  ansible.builtin.raw: |
+    packages_installed=0
+    cdrom_source_disabled=0
+
+    if grep -Eq '^[[:space:]]*deb[[:space:]]+cdrom:' /etc/apt/sources.list; then
+      sed -i \
+        '/^[[:space:]]*deb[[:space:]]\+cdrom:/s/^/# /' \
+        /etc/apt/sources.list
+      cdrom_source_disabled=1
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1 ||
+       ! command -v sudo >/dev/null 2>&1; then
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y python3 sudo
+      packages_installed=1
+    fi
+
+    if [ "$cdrom_source_disabled" -eq 1 ]; then
+      echo CDROM_SOURCE_DISABLED
+    fi
+
+    if [ "$packages_installed" -eq 1 ]; then
+      echo BOOTSTRAP_PACKAGES_INSTALLED
+    fi
+  register: bootstrap_prerequisites_result
+  changed_when: >-
+    'CDROM_SOURCE_DISABLED' in bootstrap_prerequisites_result.stdout or
+    'BOOTSTRAP_PACKAGES_INSTALLED' in bootstrap_prerequisites_result.stdout
+
+- name: Gather system facts
+  ansible.builtin.setup:

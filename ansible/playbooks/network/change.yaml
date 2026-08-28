@@ -1,0 +1,37 @@
+---
+- name: Rename worker interfaces to ens20/21/22
+  hosts: k8s
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Create Netplan interface rename file
+      ansible.builtin.copy:
+        dest: /etc/netplan/01-interface-renames.yaml
+        mode: "0600"
+        content: |
+          network:
+            version: 2
+            ethernets:
+              ens20:
+                match:
+                  macaddress: "{{ ansible_eth2.macaddress }}"
+                set-name: ens20
+
+              ens21:
+                match:
+                  macaddress: "{{ ansible_eth3.macaddress }}"
+                set-name: ens21
+
+              ens22:
+                match:
+                  macaddress: "{{ ansible_eth4.macaddress }}"
+                set-name: ens22
+
+    - name: Generate netplan
+      ansible.builtin.command: netplan generate
+      changed_when: true
+
+    - name: Apply netplan
+      ansible.builtin.command: netplan apply
+      changed_when: true

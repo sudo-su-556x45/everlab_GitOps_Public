@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: cloudnative-pg
+      targetRevision: "0.29.0"
+
+      helm:
+        releaseName: cnpg
+
+        valuesObject:
+
+          image:
+            repository: ghcr.io/cloudnative-pg/cloudnative-pg
+            tag: "1.29.2"
+
+          config:
+            clusterWide: true
+
+          replicaCount: 1
+
+          monitoring:
+            podMonitorEnabled: true
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/platform/cloudnative-pg
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 10

@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homeassistant
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://bjw-s-labs.github.io/helm-charts/
+      chart: app-template
+      targetRevision: "5.0.1"
+
+      helm:
+        releaseName: homeassistant
+
+        valueFiles:
+          - $values/kubernetes/applications/home-assistant/values.yaml
+
+    - repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+      targetRevision: main
+      path: kubernetes/applications/home-assistant
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homeassistant
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true

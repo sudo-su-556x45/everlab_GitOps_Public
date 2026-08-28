@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: piper-models
+  namespace: ai
+
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  storageClassName: nfs
+
+  resources:
+    requests:
+      storage: 5Gi

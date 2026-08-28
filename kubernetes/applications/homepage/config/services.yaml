@@ -1,0 +1,23 @@
+# config/services.yaml
+- Infrastructure:
+    - Argo CD:
+        icon: argo-cd.png
+        href: https://argocd.prod.everlab.dev
+        description: GitOps deployment management
+        namespace: argocd
+        app: argocd-server
+
+    - Grafana:
+        icon: grafana.png
+        href: https://grafana.prod.everlab.dev
+        description: Metrics and monitoring
+        namespace: monitoring
+        app: grafana
+
+- Applications:
+    - Immich:
+        icon: immich.png
+        href: https://immich.prod.everlab.dev
+        description: Photo and video library
+        namespace: immich
+        app: immich-server

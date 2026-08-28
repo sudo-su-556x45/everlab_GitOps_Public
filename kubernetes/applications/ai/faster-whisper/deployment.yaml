@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: faster-whisper
+  namespace: ai
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: faster-whisper
+
+  template:
+    metadata:
+      labels:
+        app: faster-whisper
+
+    spec:
+      containers:
+        - name: faster-whisper
+          image: rhasspy/wyoming-whisper:latest
+
+          ports:
+            - name: wyoming
+              containerPort: 10300
+
+          args:
+            - "--model"
+            - "small-int8"
+            - "--language"
+            - "en"
+
+          resources:
+            requests:
+              cpu: "2"
+              memory: 2Gi
+
+            limits:
+              cpu: "4"
+              memory: 4Gi
+
+          volumeMounts:
+            - name: models
+              mountPath: /data
+
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: faster-whisper-models

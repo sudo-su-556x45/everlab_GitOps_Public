@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nocodb-valkey
+  namespace: nocodb
+  labels:
+    app.kubernetes.io/name: nocodb-valkey
+    app.kubernetes.io/part-of: nocodb
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nocodb-valkey
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nocodb-valkey
+        app.kubernetes.io/part-of: nocodb
+
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: valkey
+          image: valkey/valkey:8.1-alpine
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /bin/sh
+            - -ec
+
+          args:
+            - |
+              exec valkey-server \
+                --requirepass "${VALKEY_PASSWORD}" \
+                --save "" \
+                --appendonly no
+
+          env:
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nocodb-valkey
+                  key: password
+
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - valkey-cli -a "${VALKEY_PASSWORD}" ping | grep -q PONG
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - valkey-cli -a "${VALKEY_PASSWORD}" ping | grep -q PONG
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nocodb-valkey
+  namespace: nocodb
+  labels:
+    app.kubernetes.io/name: nocodb-valkey
+spec:
+  type: ClusterIP
+
+  selector:
+    app.kubernetes.io/name: nocodb-valkey
+
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP

@@ -1,0 +1,19 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: unifi
+  namespace: unifi
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: unifi
+      sectionName: https
+
+  validation:
+    caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: everlab-internal-ca
+
+    hostname: unifi.unifi.svc.cluster.local

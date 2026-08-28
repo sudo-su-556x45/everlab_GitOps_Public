@@ -1,0 +1,55 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "America/Denver",
+  "schedule": [
+    "before 6:00am on Monday"
+  ],
+  "dependencyDashboard": true,
+  "labels": [
+    "dependencies"
+  ],
+  "minimumReleaseAge": "3 days",
+  "prConcurrentLimit": 5,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Never automerge infrastructure or shared platform updates",
+      "matchFileNames": [
+        "kubernetes/infrastructure/**",
+        "kubernetes/platform/**"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "infrastructure"
+      ]
+    },
+    {
+      "description": "Identify major upgrades for manual review",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "major-upgrade"
+      ]
+    },
+    {
+      "description": "Keep all stateful workload updates manual",
+      "matchFileNames": [
+        "**/postgres/**",
+        "**/*pvc*.yaml",
+        "**/storage.yaml"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "stateful"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ring-mqtt
+  namespace: ring-mqtt
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ring-mqtt
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ring-mqtt
+
+    spec:
+      initContainers:
+        - name: generate-config
+          image: tsightler/ring-mqtt:5.9.3
+
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              node <<'NODE'
+              const fs = require("fs");
+
+              const username = process.env.MQTT_USERNAME;
+              const password = process.env.MQTT_PASSWORD;
+
+              const mqttUrl =
+                "mqtt://" +
+                encodeURIComponent(username) +
+                ":" +
+                encodeURIComponent(password) +
+                "@mosquitto.mosquitto.svc.cluster.local:1883";
+
+              const config = {
+                mqtt_url: mqttUrl,
+                mqtt_options: "",
+                livestream_user: "",
+                livestream_pass: "",
+                disarm_code: "",
+                enable_cameras: false,
+                enable_modes: false,
+                enable_panic: false,
+                hass_topic: "homeassistant/status",
+                ring_topic: "ring",
+                location_ids: []
+              };
+
+              fs.writeFileSync(
+                "/data/config.json",
+                JSON.stringify(config, null, 2) + "\n",
+                { mode: 0o600 }
+              );
+              NODE
+
+          env:
+            - name: MQTT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mosquitto-auth
+                  key: username
+
+            - name: MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mosquitto-auth
+                  key: password
+
+          volumeMounts:
+            - name: data
+              mountPath: /data
+
+      containers:
+        - name: ring-mqtt
+          image: tsightler/ring-mqtt:5.9.3
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: web
+              containerPort: 55123
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          volumeMounts:
+            - name: data
+              mountPath: /data
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ring-mqtt-data

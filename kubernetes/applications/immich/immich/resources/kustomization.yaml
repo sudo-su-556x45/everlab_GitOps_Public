@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - external-photos-pv.yaml
+  - external-photos-pvc.yaml
+  - library-pvc.yaml
+  - httproute.yaml
+  - metrics.yaml

@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: code-server
+  namespace: code-server
+  labels:
+    app.kubernetes.io/name: code-server
+    app.kubernetes.io/part-of: everlab
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: code-server
+
+  template:
+    metadata:
+      labels:
+        app: code-server
+        app.kubernetes.io/name: code-server
+        app.kubernetes.io/part-of: everlab
+
+    spec:
+      initContainers:
+        - name: initialize-home
+          image: codercom/code-server:latest
+          command:
+            - /bin/sh
+            - -c
+            - mkdir -p /state/config /state/code-server /state/codex
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+
+          volumeMounts:
+            - name: home
+              mountPath: /state
+
+      containers:
+        - name: code-server
+          image: codercom/code-server:latest
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          env:
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: code-server
+                  key: password
+
+            - name: CODEX_HOME
+              value: /home/coder/.codex
+
+          volumeMounts:
+            - name: projects
+              mountPath: /home/coder/projects
+
+            - name: home
+              mountPath: /home/coder/.config
+              subPath: config
+
+            - name: home
+              mountPath: /home/coder/.local/share/code-server
+              subPath: code-server
+
+            - name: home
+              mountPath: /home/coder/.codex
+              subPath: codex
+
+      volumes:
+        - name: projects
+          persistentVolumeClaim:
+            claimName: code-server-projects
+
+        - name: home
+          persistentVolumeClaim:
+            claimName: code-server-home

@@ -1,0 +1,81 @@
+global:
+  enabled: true
+  tlsDisable: true
+
+injector:
+  enabled: false
+
+csi:
+  enabled: false
+
+server:
+  enabled: true
+  configAnnotation: true
+
+  standalone:
+    enabled: true
+
+    config: |
+      ui = true
+
+      listener "tcp" {
+        address         = "[::]:8200"
+        cluster_address = "[::]:8201"
+        tls_disable     = 1
+      }
+
+      listener "tcp" {
+        address     = "[::]:9101"
+        tls_disable = 1
+
+        telemetry {
+          metrics_only                   = true
+          unauthenticated_metrics_access = true
+        }
+      }
+
+      storage "file" {
+        path = "/openbao/data"
+      }
+
+      telemetry {
+        prometheus_retention_time = "60s"
+        disable_hostname           = true
+      }
+
+  ha:
+    enabled: false
+
+  dataStorage:
+    enabled: true
+    storageClass: nfs
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    mountPath: /openbao/data
+
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+
+  auditStorage:
+    enabled: false
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8200
+    targetPort: 8200
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+ui:
+  enabled: true
+  serviceType: ClusterIP
+  serviceNodePort: null
+  externalPort: 8200

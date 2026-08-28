@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - argocd/application.yaml
+  - kube-prometheus-stack/application.yaml
+  - loki/application.yaml
+  - alloy/application.yaml
+  - reloader/application.yaml
+  - external-secrets/application.yaml
+  - trust-manager/application.yaml
+  - kyverno/application.yaml
+  - keda/application.yaml
+  - keda-http-add-on/application.yaml
+  - descheduler/application.yaml
+  - cloudnative-pg/application.yaml
+  - openbao/application.yaml
+  - mosquitto/application.yaml
+  - influxdb/application.yaml
+  - telegraf/application.yaml
+  - headlamp/application.yaml
+  - goldilocks/application.yaml
+  - prometheus-blackbox-exporter/application.yaml

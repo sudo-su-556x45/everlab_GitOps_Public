@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radicale
+  namespace: radicale
+  labels:
+    app.kubernetes.io/name: radicale
+    app.kubernetes.io/part-of: everlab
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: radicale
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: radicale
+        app.kubernetes.io/part-of: everlab
+
+    spec:
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: radicale
+          image: ghcr.io/kozea/radicale:3.7.7
+          imagePullPolicy: IfNotPresent
+
+          args:
+            - --config
+            - /etc/radicale/config
+
+          ports:
+            - name: http
+              containerPort: 5232
+              protocol: TCP
+
+          env:
+            - name: TZ
+              value: America/Denver
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/radicale/config
+              subPath: config
+              readOnly: true
+
+            - name: auth
+              mountPath: /etc/radicale/users
+              subPath: users
+              readOnly: true
+
+            - name: data
+              mountPath: /var/lib/radicale
+
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 5
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+      volumes:
+        - name: config
+          configMap:
+            name: radicale-config
+
+        - name: auth
+          secret:
+            secretName: radicale-auth
+            defaultMode: 0440
+
+        - name: data
+          persistentVolumeClaim:
+            claimName: radicale-data

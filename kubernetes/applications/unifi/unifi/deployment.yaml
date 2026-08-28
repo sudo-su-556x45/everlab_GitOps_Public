@@ -1,0 +1,250 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unifi
+  namespace: unifi
+  labels:
+    app.kubernetes.io/name: unifi
+    app.kubernetes.io/part-of: everlab
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: unifi
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: unifi
+        app.kubernetes.io/part-of: everlab
+
+    spec:
+      initContainers:
+        - name: wait-for-mongodb
+          image: mongo:8.0
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-mongodb
+                  key: username
+
+            - name: MONGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-mongodb
+                  key: password
+
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              echo "Waiting for MongoDB..."
+
+              until mongosh \
+                --host unifi-mongodb.unifi.svc.cluster.local \
+                --port 27017 \
+                --username "${MONGO_USER}" \
+                --password "${MONGO_PASS}" \
+                --authenticationDatabase admin \
+                --quiet \
+                --eval 'db.adminCommand({ ping: 1 }).ok' \
+                | grep -q '^1$'; do
+
+                echo "MongoDB not ready yet..."
+                sleep 5
+              done
+
+              echo "MongoDB is ready."
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+
+        - name: configure-proxy
+          image: busybox:1.37
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cat > /nginx-config/default.conf <<'EOF'
+              server {
+                  listen 9080;
+                  server_name _;
+
+                  client_max_body_size 0;
+
+                  location / {
+                      proxy_pass https://127.0.0.1:8443;
+
+                      proxy_http_version 1.1;
+
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto https;
+                      proxy_set_header X-Forwarded-Host $host;
+
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection "upgrade";
+
+                      # UniFi serves a self-signed certificate on :8443.
+                      # This connection remains inside the same Pod.
+                      proxy_ssl_verify off;
+
+                      proxy_read_timeout 3600s;
+                      proxy_send_timeout 3600s;
+                  }
+              }
+              EOF
+
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /nginx-config
+
+      containers:
+        - name: unifi
+          image: lscr.io/linuxserver/unifi-network-application:latest
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: PUID
+              value: "1000"
+
+            - name: PGID
+              value: "1000"
+
+            - name: TZ
+              value: America/Denver
+
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-mongodb
+                  key: username
+
+            - name: MONGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-mongodb
+                  key: password
+
+            - name: MONGO_HOST
+              value: unifi-mongodb.unifi.svc.cluster.local
+
+            - name: MONGO_PORT
+              value: "27017"
+
+            - name: MONGO_DBNAME
+              value: unifi
+
+            - name: MONGO_AUTHSOURCE
+              value: admin
+
+            - name: MEM_STARTUP
+              value: "512"
+
+            - name: MEM_LIMIT
+              value: "1024"
+
+          ports:
+            - name: native-https
+              containerPort: 8443
+              protocol: TCP
+
+            - name: inform
+              containerPort: 8080
+              protocol: TCP
+
+            - name: stun
+              containerPort: 3478
+              protocol: UDP
+
+            - name: discovery
+              containerPort: 10001
+              protocol: UDP
+
+            - name: portal-http
+              containerPort: 8880
+              protocol: TCP
+
+            - name: portal-https
+              containerPort: 8843
+              protocol: TCP
+
+            - name: speedtest
+              containerPort: 6789
+              protocol: TCP
+
+            - name: syslog
+              containerPort: 5514
+              protocol: UDP
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+
+            limits:
+              cpu: "2"
+              memory: 2Gi
+
+          volumeMounts:
+            - name: config
+              mountPath: /config
+
+        - name: http-proxy
+          image: nginx:1.29-alpine
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: backend-http
+              containerPort: 9080
+              protocol: TCP
+
+          readinessProbe:
+            tcpSocket:
+              port: backend-http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+
+          livenessProbe:
+            tcpSocket:
+              port: backend-http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: unifi-config
+
+        - name: nginx-config
+          emptyDir: {}

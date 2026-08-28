@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: faster-whisper
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+
+  labels:
+    app.kubernetes.io/name: faster-whisper
+    app.kubernetes.io/part-of: ai
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+    targetRevision: main
+    path: kubernetes/applications/ai/faster-whisper
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true

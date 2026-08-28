@@ -1,0 +1,132 @@
+---
+- name: Configure Cilium Gateway return routes
+  hosts: k8s
+  become: true
+  gather_facts: false
+  serial: 1
+
+  vars:
+    gateway_interface: ens20
+    gateway_vlan_network: 192.168.12.0/24
+    gateway_vlan_router: 192.168.12.1
+
+    gateway_client_networks:
+      - 192.168.0.0/24
+      - 192.168.10.0/24
+
+    netplan_file: /etc/netplan/90-k8s-gateway-routes.yaml
+
+  tasks:
+    - name: Verify Gateway interface exists
+      ansible.builtin.stat:
+        path: "/sys/class/net/{{ gateway_interface }}"
+      register: gateway_interface_check
+
+    - name: Fail when Gateway interface is missing
+      ansible.builtin.assert:
+        that:
+          - gateway_interface_check.stat.exists
+        fail_msg: >-
+          Interface {{ gateway_interface }} does not exist on
+          {{ inventory_hostname }}.
+
+    - name: Verify Netplan is installed
+      ansible.builtin.command:
+        argv:
+          - netplan
+          - --help
+      changed_when: false
+
+    - name: Back up existing Netplan configuration
+      ansible.builtin.copy:
+        src: /etc/netplan/50-cloud-init.yaml
+        dest: /root/50-cloud-init.yaml.before-gateway-routes
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+        force: false
+
+    - name: Install persistent Gateway route configuration
+      ansible.builtin.copy:
+        dest: "{{ netplan_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          network:
+            version: 2
+            ethernets:
+              {{ gateway_interface }}:
+                dhcp4: false
+                dhcp6: false
+                link-local: []
+                optional: true
+                routes:
+                  - to: {{ gateway_vlan_network }}
+                    scope: link
+          {% for network in gateway_client_networks %}
+                  - to: {{ network }}
+                    via: {{ gateway_vlan_router }}
+          {% endfor %}
+      register: gateway_route_config
+
+    - name: Validate Netplan configuration
+      ansible.builtin.command:
+        argv:
+          - netplan
+          - generate
+      changed_when: false
+
+    - name: Apply Netplan configuration
+      ansible.builtin.command:
+        argv:
+          - netplan
+          - apply
+      when: gateway_route_config.changed
+      changed_when: true
+
+    - name: Ensure Gateway interface is up
+      ansible.builtin.command:
+        argv:
+          - ip
+          - link
+          - set
+          - dev
+          - "{{ gateway_interface }}"
+          - up
+      changed_when: false
+
+    - name: Read route to VLAN 12 gateway
+      ansible.builtin.command:
+        argv:
+          - ip
+          - route
+          - get
+          - "{{ gateway_vlan_router }}"
+      register: gateway_route
+      changed_when: false
+
+    - name: Verify VLAN 12 gateway route
+      ansible.builtin.assert:
+        that:
+          - gateway_interface in gateway_route.stdout
+        fail_msg: >-
+          Route to {{ gateway_vlan_router }} is not using
+          {{ gateway_interface }}:
+          {{ gateway_route.stdout }}
+
+    - name: Display configured routes
+      ansible.builtin.command:
+        argv:
+          - ip
+          - route
+          - show
+          - dev
+          - "{{ gateway_interface }}"
+      register: configured_routes
+      changed_when: false
+
+    - name: Show configured Gateway routes
+      ansible.builtin.debug:
+        var: configured_routes.stdout_lines

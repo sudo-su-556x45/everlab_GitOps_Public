@@ -1,0 +1,45 @@
+---
+- name: Validate Debian operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family == "Debian"
+    fail_msg: >-
+      Host {{ inventory_hostname }} is not Debian-based.
+      Detected OS family:
+      {{ ansible_facts.os_family | default('unknown') }}.
+
+- name: Validate required inventory variables
+  ansible.builtin.assert:
+    that:
+      - ansible_host is defined
+      - ansible_host | string | length > 0
+
+      - server_hostname is defined
+      - server_hostname | string | length > 0
+
+      - system_type is defined
+      - system_type in ["vm", "baremetal"]
+
+      - ipa_domain is defined
+      - ipa_domain | string | length > 0
+
+      - ipa_realm is defined
+      - ipa_realm | string | length > 0
+
+      - ipa_server is defined
+      - ipa_server | string | length > 0
+
+      - ipa_admin_user is defined
+      - ipa_admin_user | string | length > 0
+    fail_msg: >-
+      Host {{ inventory_hostname }} is missing one or more required
+      variables: ansible_host, server_hostname, system_type,
+      ipa_domain, ipa_realm, ipa_server, or ipa_admin_user.
+
+- name: Display bootstrap target information
+  ansible.builtin.debug:
+    msg:
+      inventory_hostname: "{{ inventory_hostname }}"
+      connection_address: "{{ ansible_host }}"
+      server_hostname: "{{ server_hostname }}"
+      system_type: "{{ system_type }}"

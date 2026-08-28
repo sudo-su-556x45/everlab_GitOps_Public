@@ -1,0 +1,168 @@
+---
+- name: Remove host addressing from Kubernetes passthrough VLAN interfaces
+  hosts: prod-k8m-01
+  become: true
+  gather_facts: false
+  serial: 1
+
+  vars:
+    protected_interfaces:
+      - lo
+      - eth0
+      - eth1
+    passthrough_interfaces:
+      - ens20
+      - ens21
+      - ens22
+
+  tasks:
+    - name: Validate passthrough interface variable
+      ansible.builtin.assert:
+        that:
+          - passthrough_interfaces is defined
+          - passthrough_interfaces | length > 0
+        fail_msg: >-
+          passthrough_interfaces must be defined for
+          {{ inventory_hostname }} or its inventory group.
+
+    - name: Refuse to modify protected interfaces
+      ansible.builtin.assert:
+        that:
+          - item not in protected_interfaces
+        fail_msg: "Refusing to modify protected interface {{ item }}"
+      loop: "{{ passthrough_interfaces }}"
+
+    - name: Check passthrough interfaces exist
+      ansible.builtin.stat:
+        path: "/sys/class/net/{{ item }}"
+      loop: "{{ passthrough_interfaces }}"
+      register: passthrough_checks
+
+    - name: Fail when an interface does not exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: >-
+          Interface {{ item.item }} does not exist on
+          {{ inventory_hostname }}.
+      loop: "{{ passthrough_checks.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Back up existing Netplan configuration
+      ansible.builtin.copy:
+        src: /etc/netplan/50-cloud-init.yaml
+        dest: /root/50-cloud-init.yaml.before-passthrough
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+        force: false
+
+    - name: Remove obsolete systemd-networkd passthrough overrides
+      ansible.builtin.file:
+        path: "/etc/systemd/network/90-{{ item }}-passthrough.network"
+        state: absent
+      loop: "{{ passthrough_interfaces }}"
+
+    - name: Install Netplan passthrough override
+      ansible.builtin.copy:
+        dest: /etc/netplan/90-k8s-passthrough.yaml
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          network:
+            version: 2
+            ethernets:
+          {% for interface in passthrough_interfaces %}
+              {{ interface }}:
+                dhcp4: false
+                dhcp6: false
+                link-local: []
+                optional: true
+          {% endfor %}
+      register: netplan_passthrough
+
+    - name: Validate Netplan configuration
+      ansible.builtin.command:
+        argv:
+          - netplan
+          - generate
+      changed_when: false
+
+    - name: Apply Netplan configuration
+      ansible.builtin.command:
+        argv:
+          - netplan
+          - apply
+      when: netplan_passthrough.changed
+      changed_when: true
+
+    - name: Remove remaining IPv4 addresses
+      ansible.builtin.command:
+        argv:
+          - ip
+          - -4
+          - address
+          - flush
+          - dev
+          - "{{ item }}"
+      loop: "{{ passthrough_interfaces }}"
+      changed_when: true
+
+    - name: Remove remaining IPv6 addresses
+      ansible.builtin.command:
+        argv:
+          - ip
+          - -6
+          - address
+          - flush
+          - dev
+          - "{{ item }}"
+      loop: "{{ passthrough_interfaces }}"
+      changed_when: true
+
+    - name: Bring passthrough interfaces up
+      ansible.builtin.command:
+        argv:
+          - ip
+          - link
+          - set
+          - dev
+          - "{{ item }}"
+          - up
+      loop: "{{ passthrough_interfaces }}"
+      changed_when: true
+
+    - name: Collect final interface state
+      ansible.builtin.command:
+        argv:
+          - ip
+          - -brief
+          - address
+          - show
+          - dev
+          - "{{ item }}"
+      loop: "{{ passthrough_interfaces }}"
+      register: passthrough_state
+      changed_when: false
+
+    - name: Verify passthrough interfaces have no addresses
+      ansible.builtin.assert:
+        that:
+          - item.stdout is not regex('[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+          - "'fe80:' not in item.stdout"
+        fail_msg: >-
+          Interface {{ item.item }} still has an address:
+          {{ item.stdout }}
+      loop: "{{ passthrough_state.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Display final interface state
+      ansible.builtin.debug:
+        msg: "{{ item.stdout }}"
+      loop: "{{ passthrough_state.results }}"
+      loop_control:
+        label: "{{ item.item }}"

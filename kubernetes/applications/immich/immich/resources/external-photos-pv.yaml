@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: immich-external-family-photos
+spec:
+  capacity:
+    storage: 10Ti
+
+  accessModes:
+    - ReadOnlyMany
+
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+
+  mountOptions:
+    - ro
+    - nfsvers=4.1
+    - sec=sys
+
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeHandle: immich-external-family-photos
+    volumeAttributes:
+      server: 192.168.21.120
+      share: /immich-family-photos

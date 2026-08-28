@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - hardware-enablement
+  - gateway-api/application.yaml
+  - cilium/application.yaml
+  - cert-manager/application.yaml
+  - external-dns/application.yaml
+  - gateway/application.yaml
+  - nfs-csi/application.yaml
+  - nvidia-gpu-operator/application.yaml
+  - metrics-server/application.yaml
+  - openebs-localpv/application.yaml
+  - multus/application.yaml
+  - cloudflared/application.yaml

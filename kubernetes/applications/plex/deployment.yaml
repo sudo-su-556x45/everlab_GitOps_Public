@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  namespace: plex
+  labels:
+    app.kubernetes.io/name: plex
+    app.kubernetes.io/part-of: media-stack
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plex
+        app.kubernetes.io/part-of: media-stack
+
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "plex-lan",
+              "namespace": "plex",
+              "interface": "net1"
+            }
+          ]
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: prod-k8w-01.k8s.everlab.dev
+        nvidia.com/device-plugin.config: p1000
+
+      terminationGracePeriodSeconds: 120
+
+      securityContext:
+        supplementalGroups:
+          - 85200014
+
+      containers:
+        - name: plex
+          image: plexinc/pms-docker:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 32400
+              protocol: TCP
+
+            - name: companion
+              containerPort: 8324
+              protocol: TCP
+
+            - name: dlna
+              containerPort: 32469
+              protocol: TCP
+
+            - name: gdm-32410
+              containerPort: 32410
+              protocol: UDP
+
+            - name: gdm-32412
+              containerPort: 32412
+              protocol: UDP
+
+            - name: gdm-32413
+              containerPort: 32413
+              protocol: UDP
+
+            - name: gdm-32414
+              containerPort: 32414
+              protocol: UDP
+
+          env:
+            - name: TZ
+              value: America/Denver
+
+            - name: VERSION
+              value: docker
+
+            - name: PLEX_UID
+              value: "1000"
+
+            - name: PLEX_GID
+              value: "1000"
+
+            - name: ADVERTISE_IP
+              value: >-
+                http://192.168.10.50:32400/,
+                https://plex.prod.everlab.dev:443/
+
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,video,utility
+
+          resources:
+            requests:
+              cpu: "6"
+              memory: 4Gi
+              nvidia.com/gpu: "1"
+
+            limits:
+              cpu: "10"
+              memory: 12Gi
+              nvidia.com/gpu: "1"
+
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - curl -fsS --max-time 5 http://127.0.0.1:32400/identity >/dev/null
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 60
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - curl -fsS --max-time 5 http://127.0.0.1:32400/identity >/dev/null
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
+
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - curl -fsS --max-time 5 http://127.0.0.1:32400/identity >/dev/null
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 6
+
+          volumeMounts:
+            - name: config
+              mountPath: /config
+
+            - name: media
+              mountPath: /media/media
+              readOnly: true
+
+            - name: transcode
+              mountPath: /transcode
+
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex-config
+
+        - name: media
+          persistentVolumeClaim:
+            claimName: plex-media
+
+        - name: transcode
+          persistentVolumeClaim:
+            claimName: plex-transcode

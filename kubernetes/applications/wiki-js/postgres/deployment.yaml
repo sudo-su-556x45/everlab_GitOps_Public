@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wiki-js
+  namespace: wiki-js
+  labels:
+    app.kubernetes.io/name: wiki-js
+    app.kubernetes.io/part-of: everlab
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wiki-js
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wiki-js
+        app.kubernetes.io/part-of: everlab
+
+    spec:
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:17-alpine
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready \
+                --host=wiki-js-postgres-rw \
+                --port=5432 \
+                --username="${POSTGRES_USER}" \
+                --dbname=wikijs
+              do
+                echo "Waiting for PostgreSQL..."
+                sleep 5
+              done
+
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: wiki-js-postgres-user
+                  key: username
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+      containers:
+        - name: wiki-js
+          image: ghcr.io/requarks/wiki:2.5.314
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          env:
+            - name: DB_TYPE
+              value: postgres
+
+            - name: DB_HOST
+              value: wiki-js-postgres-rw
+
+            - name: DB_PORT
+              value: "5432"
+
+            - name: DB_NAME
+              value: wikijs
+
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: wiki-js-postgres-user
+                  key: username
+
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: wiki-js-postgres-user
+                  key: password
+
+            - name: HA_ACTIVE
+              value: "false"
+
+            - name: TZ
+              value: America/Denver
+
+          volumeMounts:
+            - name: temporary-data
+              mountPath: /wiki/data
+
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+
+      volumes:
+        - name: temporary-data
+          emptyDir: {}

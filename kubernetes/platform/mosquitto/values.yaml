@@ -1,0 +1,169 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/bjw-s-labs/helm-charts/app-template-5.0.1/charts/other/app-template/values.schema.json
+
+defaultPodOptions:
+  automountServiceAccountToken: false
+
+controllers:
+  main:
+    type: deployment
+    strategy: Recreate
+
+    annotations:
+      reloader.stakater.com/auto: "true"
+
+    pod:
+      securityContext:
+        fsGroup: 1883
+        fsGroupChangePolicy: OnRootMismatch
+
+    initContainers:
+      password-file:
+        image:
+          repository: eclipse-mosquitto
+          tag: 2.1.2-alpine
+          pullPolicy: IfNotPresent
+
+        env:
+          MQTT_USERNAME:
+            valueFrom:
+              secretKeyRef:
+                name: mosquitto-auth
+                key: username
+
+          MQTT_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: mosquitto-auth
+                key: password
+
+        command:
+          - /bin/sh
+          - -ec
+          - |
+            echo "Generating Mosquitto password file"
+
+            rm -f /auth/passwd
+
+            mosquitto_passwd \
+              -b \
+              -c \
+              /auth/passwd \
+              "${MQTT_USERNAME}" \
+              "${MQTT_PASSWORD}"
+
+            chmod 0640 /auth/passwd
+            chown 1883:1883 /auth/passwd
+
+    containers:
+      main:
+        image:
+          repository: eclipse-mosquitto
+          tag: 2.1.2-alpine
+          pullPolicy: IfNotPresent
+
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 1883
+              periodSeconds: 5
+              timeoutSeconds: 2
+              failureThreshold: 30
+
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 1883
+              periodSeconds: 10
+              timeoutSeconds: 2
+              failureThreshold: 3
+
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 1883
+              periodSeconds: 20
+              timeoutSeconds: 2
+              failureThreshold: 3
+
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+
+          limits:
+            memory: 256Mi
+
+configMaps:
+  config:
+    data:
+      mosquitto.conf: |-
+        listener 1883 0.0.0.0
+
+        allow_anonymous false
+        password_file /auth/passwd
+
+        persistence true
+        persistence_location /mosquitto/data/
+        persistence_file mosquitto.db
+        autosave_interval 300
+
+        log_dest stdout
+        log_type error
+        log_type warning
+        log_type notice
+        log_type information
+
+        connection_messages true
+
+service:
+  main:
+    controller: main
+    type: ClusterIP
+
+    ports:
+      mqtt:
+        port: 1883
+        protocol: TCP
+
+persistence:
+  config:
+    type: configMap
+    identifier: config
+
+    advancedMounts:
+      main:
+        main:
+          - path: /mosquitto/config/mosquitto.conf
+            subPath: mosquitto.conf
+            readOnly: true
+
+  auth:
+    type: emptyDir
+
+    advancedMounts:
+      main:
+        password-file:
+          - path: /auth
+
+        main:
+          - path: /auth
+            readOnly: true
+
+  data:
+    type: persistentVolumeClaim
+    storageClass: nfs
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    retain: true
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+    globalMounts:
+      - path: /mosquitto/data

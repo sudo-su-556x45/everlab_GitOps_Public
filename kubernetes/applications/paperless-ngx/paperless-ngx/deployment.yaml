@@ -1,0 +1,252 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless-ngx
+  namespace: paperless-ngx
+  labels:
+    app.kubernetes.io/name: paperless-ngx
+    app.kubernetes.io/part-of: paperless-ngx
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperless-ngx
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless-ngx
+        app.kubernetes.io/part-of: paperless-ngx
+
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+
+      initContainers:
+        - name: wait-for-postgres
+          image: ghcr.io/cloudnative-pg/postgresql:17
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready \
+                --host=paperless-postgres-rw \
+                --port=5432 \
+                --username="${POSTGRES_USER}" \
+                --dbname=paperless
+              do
+                echo "Waiting for PostgreSQL..."
+                sleep 5
+              done
+
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-postgres-user
+                  key: username
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+        - name: wait-for-valkey
+          image: valkey/valkey:8.1-alpine
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until valkey-cli \
+                -h paperless-valkey \
+                -p 6379 \
+                ping | grep -q PONG
+              do
+                echo "Waiting for Valkey..."
+                sleep 5
+              done
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+      containers:
+        - name: paperless-ngx
+          image: ghcr.io/paperless-ngx/paperless-ngx:3.0.4
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          env:
+            - name: PAPERLESS_URL
+              value: https://paperless.prod.everlab.dev
+
+            - name: PAPERLESS_ALLOWED_HOSTS
+              value: paperless.prod.everlab.dev
+
+            - name: PAPERLESS_CSRF_TRUSTED_ORIGINS
+              value: https://paperless.prod.everlab.dev
+
+            - name: PAPERLESS_TIME_ZONE
+              value: America/Denver
+
+            - name: PAPERLESS_OCR_LANGUAGE
+              value: eng
+
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-application
+                  key: secret-key
+
+            - name: PAPERLESS_REDIS
+              value: redis://paperless-valkey:6379
+
+            - name: PAPERLESS_DBENGINE
+              value: postgresql
+
+            - name: PAPERLESS_DBHOST
+              value: paperless-postgres-rw
+
+            - name: PAPERLESS_DBPORT
+              value: "5432"
+
+            - name: PAPERLESS_DBNAME
+              value: paperless
+
+            - name: PAPERLESS_DBUSER
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-postgres-user
+                  key: username
+
+            - name: PAPERLESS_DBPASS
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-postgres-user
+                  key: password
+
+            - name: PAPERLESS_DATA_DIR
+              value: /usr/src/paperless/data
+
+            - name: PAPERLESS_MEDIA_ROOT
+              value: /usr/src/paperless/media
+
+            - name: PAPERLESS_CONSUMPTION_DIR
+              value: /usr/src/paperless/consume
+
+            - name: PAPERLESS_EXPORT_DIR
+              value: /usr/src/paperless/export
+
+            - name: PAPERLESS_CONSUMER_RECURSIVE
+              value: "true"
+
+            - name: PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS
+              value: "true"
+
+            - name: PAPERLESS_CONSUMER_POLLING
+              value: "30"
+
+            - name: PAPERLESS_FILENAME_FORMAT
+              value: "{created_year}/{correspondent}/{title}"
+
+            - name: PAPERLESS_FILENAME_FORMAT_REMOVE_NONE
+              value: "true"
+
+            - name: PAPERLESS_TASK_WORKERS
+              value: "2"
+
+            - name: PAPERLESS_THREADS_PER_WORKER
+              value: "2"
+
+            - name: PAPERLESS_WEBSERVER_WORKERS
+              value: "2"
+
+          volumeMounts:
+            - name: data
+              mountPath: /usr/src/paperless/data
+
+            - name: media
+              mountPath: /usr/src/paperless/media
+
+            - name: export
+              mountPath: /usr/src/paperless/export
+
+            - name: consume
+              mountPath: /usr/src/paperless/consume
+
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: paperless.prod.everlab.dev
+            periodSeconds: 10
+            failureThreshold: 60
+            timeoutSeconds: 5
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: paperless.prod.everlab.dev
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: paperless.prod.everlab.dev
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 5
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperless-data
+
+        - name: media
+          persistentVolumeClaim:
+            claimName: paperless-media
+
+        - name: export
+          persistentVolumeClaim:
+            claimName: paperless-export
+
+        - name: consume
+          persistentVolumeClaim:
+            claimName: paperless-consume

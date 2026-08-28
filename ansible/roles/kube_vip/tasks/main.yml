@@ -1,0 +1,74 @@
+---
+- name: Validate kube-vip variables
+  ansible.builtin.assert:
+    that:
+      - k8s_api_vip is defined
+      - k8s_api_vip | length > 0
+      - k8s_cluster_interface is defined
+      - k8s_cluster_interface | length > 0
+      - k8s_api_port | int > 0
+    fail_msg: >-
+      kube-vip requires k8s_api_vip, k8s_cluster_interface,
+      and k8s_api_port to be defined.
+
+- name: Check Kubernetes manifest directory
+  ansible.builtin.stat:
+    path: /etc/kubernetes/manifests
+  register: kube_vip_manifest_directory
+
+- name: Fail if Kubernetes manifest directory does not exist
+  ansible.builtin.fail:
+    msg: >-
+      /etc/kubernetes/manifests does not exist. Run kubeadm init or
+      create the Kubernetes manifest directory before installing kube-vip.
+  when: not kube_vip_manifest_directory.stat.exists
+
+- name: Check that the Kubernetes cluster interface exists
+  ansible.builtin.command:
+    argv:
+      - ip
+      - link
+      - show
+      - "{{ k8s_cluster_interface }}"
+  changed_when: false
+
+- name: Install kube-vip static pod manifest
+  become: true
+  ansible.builtin.template:
+    src: kube-vip.yaml.j2
+    dest: "{{ kube_vip_manifest_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Wait for kube-vip container to start
+  become: true
+  ansible.builtin.command:
+    argv:
+      - crictl
+      - ps
+      - --name
+      - kube-vip
+      - --quiet
+  register: kube_vip_container
+  changed_when: false
+  retries: 30
+  delay: 5
+  until: kube_vip_container.stdout | length > 0
+
+- name: Wait for API VIP to appear on cluster interface
+  become: true
+  ansible.builtin.command:
+    argv:
+      - ip
+      - -4
+      - addr
+      - show
+      - dev
+      - "{{ k8s_cluster_interface }}"
+  register: kube_vip_interface_addresses
+  changed_when: false
+  retries: 15
+  delay: 2
+  until: k8s_api_vip in kube_vip_interface_addresses.stdout
+  when: inventory_hostname == groups['k8s_masters'][0]

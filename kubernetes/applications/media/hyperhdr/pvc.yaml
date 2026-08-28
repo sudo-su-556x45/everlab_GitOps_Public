@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hyperhdr-config
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: nfs
+  resources:
+    requests:
+      storage: 2Gi

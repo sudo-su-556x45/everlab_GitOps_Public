@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ersatztv-transcode
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  storageClassName: plex-transcode-local
+
+  resources:
+    requests:
+      storage: 20Gi

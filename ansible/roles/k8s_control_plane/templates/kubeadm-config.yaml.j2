@@ -1,0 +1,21 @@
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: "{{ k8s_version }}"
+controlPlaneEndpoint: "{{ k8s_api_hostname }}:{{ k8s_api_port }}"
+networking:
+  podSubnet: "{{ k8s_pod_cidr }}"
+  serviceSubnet: "{{ k8s_service_cidr }}"
+apiServer:
+  certSANs:
+    - "{{ k8s_api_hostname }}"
+    - "{{ k8s_api_vip }}"
+    - "{{ k8s_cluster_ip }}"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "{{ k8s_cluster_ip }}"
+  bindPort: {{ k8s_api_port }}
+nodeRegistration:
+  name: "{{ k8s_hostname }}"

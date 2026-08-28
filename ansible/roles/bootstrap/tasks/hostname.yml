@@ -1,0 +1,17 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ server_hostname }}"
+
+- name: Configure local hostname resolution
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1(?:\s|$)'
+    line: >-
+      127.0.1.1 {{ server_hostname }}
+      {{ server_hostname.split('.')[0] }}
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0644"

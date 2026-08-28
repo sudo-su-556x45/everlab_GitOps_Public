@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy-data
+  namespace: ntfy
+  labels:
+    app.kubernetes.io/name: ntfy
+    app.kubernetes.io/part-of: everlab
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  storageClassName: nfs
+
+  resources:
+    requests:
+      storage: 10Gi

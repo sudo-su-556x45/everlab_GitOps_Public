@@ -1,0 +1,50 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: everlab-http
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/part-of: everlab
+spec:
+  jobName: everlab-http
+  interval: 60s
+  scrapeTimeout: 15s
+  module: http_internal
+
+  prober:
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+
+  targets:
+    staticConfig:
+      static:
+        - https://actual-budget.prod.everlab.dev
+        - https://argocd.prod.everlab.dev
+        - https://code.prod.everlab.dev
+        - https://dav.prod.everlab.dev
+        - https://element.prod.everlab.dev
+        - https://esphome.prod.everlab.dev
+        - https://forgejo.prod.everlab.dev
+        - https://frigate.prod.everlab.dev
+        - https://goldilocks.prod.everlab.dev
+        - https://grafana.prod.everlab.dev
+        - https://headlamp.prod.everlab.dev
+        - https://homeassistant.prod.everlab.dev
+        - https://homepage.prod.everlab.dev
+        - https://hyperhdr.prod.everlab.dev
+        - https://immich.prod.everlab.dev
+        - https://matrix.prod.everlab.dev
+        - https://music-assistant.prod.everlab.dev
+        - https://n8n.prod.everlab.dev
+        - https://nocodb.prod.everlab.dev
+        - https://ntfy.prod.everlab.dev
+        - https://open-webui.prod.everlab.dev
+        - https://openbao.prod.everlab.dev
+        - https://paperless.prod.everlab.dev
+        - https://plex.prod.everlab.dev
+        - https://trek.prod.everlab.dev
+        - https://unifi.prod.everlab.dev
+        - https://vikunja.prod.everlab.dev
+        - https://wiki.prod.everlab.dev
+        - https://zigbee.prod.everlab.dev
+        - https://zwave.prod.everlab.dev

@@ -1,0 +1,48 @@
+vpa:
+  enabled: true
+
+  recommender:
+    podMonitor:
+      enabled: true
+
+  updater:
+    enabled: false
+
+metrics-server:
+  enabled: false
+
+controller:
+  flags:
+    on-by-default: "true"
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+dashboard:
+  replicaCount: 1
+
+  flags:
+    on-by-default: "true"
+
+  httpRoute:
+    enabled: true
+
+    parentRefs:
+      - name: everlab-gateway
+        namespace: gateway
+
+    hostnames:
+      - goldilocks.prod.everlab.dev
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

@@ -1,0 +1,54 @@
+---
+k8s_version: v1.33
+
+k8s_cluster_name: everlab-prod
+k8s_cluster_domain: cluster.local
+
+# VLAN 11 - Kubernetes control plane / node network
+k8s_api_hostname: k8s-api.prod.everlab.dev
+k8s_api_vip: 192.168.11.100
+k8s_api_port: 6443
+k8s_cluster_interface: ens18.11
+
+# Kubernetes networking
+k8s_pod_cidr: 10.0.0.0/8
+k8s_service_cidr: 10.96.0.0/12
+
+# VLAN 12 - Kubernetes LoadBalancer service network
+k8s_lb_interface: ens18.12
+k8s_lb_pool_start: 192.168.12.100
+k8s_lb_pool_stop: 192.168.12.250
+
+# Worker VLAN networking
+k8s_network_physical_interface: ens18
+k8s_network_prefix: 24
+k8s_network_management_vlan: 10
+k8s_network_management_gateway: 192.168.10.1
+k8s_network_dns_servers:
+  - 192.168.10.1
+k8s_network_cluster_vlan: 11
+k8s_network_load_balancer_vlan: 12
+k8s_network_load_balancer_gateway: 192.168.12.1
+k8s_network_load_balancer_routes:
+  - 192.168.0.0/24
+k8s_network_storage_vlan: 20
+k8s_network_pv_vlan: 21
+
+# VLAN 21 - NFS CSI traffic
+nfs_csi_server: 192.168.21.120
+nfs_csi_share: /kubedata
+nfs_csi_mount_options:
+  - nfsvers=4.1
+  - hard
+  - noatime
+
+# Cilium
+cilium_version: "1.19.3"
+cilium_kube_proxy_replacement: true
+cilium_gateway_api: true
+cilium_l2_announcements: true
+
+# Argo CD
+argocd_namespace: argocd
+argocd_repo_url: https://github.com/sudo-su-556x45/everlab_GitOps_Public.git
+argocd_root_path: kubernetes/bootstrap/prod

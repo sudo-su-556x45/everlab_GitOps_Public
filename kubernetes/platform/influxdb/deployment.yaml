@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb
+  namespace: influxdb
+  labels:
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/part-of: everlab
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: influxdb
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: influxdb
+        app.kubernetes.io/part-of: everlab
+
+    spec:
+      containers:
+        - name: influxdb
+          image: influxdb:2.7
+          imagePullPolicy: IfNotPresent
+
+          envFrom:
+            - secretRef:
+                name: influxdb-init
+
+          env:
+            - name: DOCKER_INFLUXDB_INIT_MODE
+              value: setup
+
+          ports:
+            - name: http
+              containerPort: 8086
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+
+            limits:
+              cpu: "2"
+              memory: 4Gi
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/influxdb2
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: influxdb-data

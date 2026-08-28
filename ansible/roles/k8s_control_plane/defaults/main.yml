@@ -1,0 +1,4 @@
+---
+k8s_control_plane_kubeadm_config_path: /etc/kubernetes/kubeadm-config.yaml
+k8s_control_plane_kubeconfig_directory: /root/.kube
+k8s_control_plane_kubeconfig_path: /root/.kube/config

@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: generic-device-plugin
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: generic-device-plugin
+    app.kubernetes.io/part-of: hardware-enablement
+
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: generic-device-plugin
+
+  updateStrategy:
+    type: RollingUpdate
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: generic-device-plugin
+        app.kubernetes.io/part-of: hardware-enablement
+
+    spec:
+      priorityClassName: system-node-critical
+
+      automountServiceAccountToken: false
+
+      nodeSelector:
+        radio-controllers: "true"
+
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+
+        - operator: Exists
+          effect: NoExecute
+
+      containers:
+        - name: generic-device-plugin
+          image: squat/generic-device-plugin:0.2.0
+          imagePullPolicy: IfNotPresent
+
+          args:
+            - --domain=everlab.dev
+
+            - --device
+            - |
+              name: zigbee
+              groups:
+                - paths:
+                    - path: /dev/ttyUSB0
+                      mountPath: /dev/ttyUSB0
+
+            - --device
+            - |
+              name: zwave
+              groups:
+                - paths:
+                    - path: /dev/ttyACM0
+                      mountPath: /dev/ttyACM0
+
+            - --log-level=info
+
+          securityContext:
+            privileged: true
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 10Mi
+
+            limits:
+              cpu: 100m
+              memory: 32Mi
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          volumeMounts:
+            - name: device-plugins
+              mountPath: /var/lib/kubelet/device-plugins
+
+            - name: dev
+              mountPath: /dev
+
+      volumes:
+        - name: device-plugins
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory
+
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory

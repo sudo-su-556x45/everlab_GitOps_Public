@@ -1,0 +1,25 @@
+---
+- name: Bootstrap Debian-based hosts
+  hosts: "{{ bootstrap_target }}"
+  gather_facts: false
+  become: true
+  remote_user: "{{ bootstrap_user }}"
+
+  vars_prompt:
+    - name: bootstrap_target
+      prompt: "Enter host(s) or inventory group"
+      private: false
+
+  vars:
+    ansible_user: "{{ bootstrap_user }}"
+    ansible_password: "{{ bootstrap_password }}"
+    ansible_become_password: "{{ bootstrap_password }}"
+    ansible_ssh_private_key_file: ""
+    ansible_ssh_common_args: >-
+      -o ProxyCommand=none
+      -o PreferredAuthentications=password
+      -o PubkeyAuthentication=no
+      -o StrictHostKeyChecking=accept-new
+
+  roles:
+    - role: bootstrap

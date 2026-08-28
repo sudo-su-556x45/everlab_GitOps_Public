@@ -1,0 +1,39 @@
+---
+- name: Render kubeadm configuration
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: "{{ k8s_control_plane_kubeadm_config_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Initialize Kubernetes
+  ansible.builtin.command:
+    argv:
+      - kubeadm
+      - init
+      - --config
+      - "{{ k8s_control_plane_kubeadm_config_path }}"
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+- name: Create root kubeconfig directory
+  ansible.builtin.file:
+    path: "{{ k8s_control_plane_kubeconfig_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Copy admin kubeconfig for root
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ k8s_control_plane_kubeconfig_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Install kube-vip
+  ansible.builtin.include_role:
+    name: kube_vip
